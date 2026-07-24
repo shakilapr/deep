@@ -1,0 +1,21 @@
+{
+  "fixtureId": "F02",
+  "task": "Find why motorEnabled stays true after a CAN timeout",
+  "rootCause": {
+    "files": ["src/safety/watchdog.ts", "src/control/command-loop.ts"],
+    "symbols": ["handleTimeout", "applyCommand"],
+    "summary": "The command loop restores a stale requested state after the watchdog clears the enabled state."
+  },
+  "relevantFiles": [
+    "src/safety/watchdog.ts",
+    "src/control/command-loop.ts",
+    "tests/can-timeout.test.ts"
+  ],
+  "requiredClaims": [
+    "The watchdog clears the enabled state.",
+    "The command loop can write the enabled state afterward."
+  ],
+  "rejectedClaims": ["The timeout is never detected."],
+  "testCommand": "node --test tests/can-timeout.test.ts",
+  "expectedPatchFiles": ["src/control/command-loop.ts", "tests/can-timeout.test.ts"]
+}

@@ -1,0 +1,45 @@
+# ==============================================================================
+# DEEP PROJECT .GITIGNORE
+# ==============================================================================
+
+# References & External Benchmark Submodules/Repositories
+references/
+
+# Project Runtime State & Local Config
+.deep/
+.codeclaw/
+
+# Dependencies
+node_modules/
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Build & Compiler Outputs
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Logs & Error Outputs
+*.log
+*.err
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test & Coverage Outputs
+coverage/
+.vitest/
+
+# IDE & OS System Files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

@@ -1,0 +1,33 @@
+{
+  "name": "deep",
+  "version": "0.1.0",
+  "description": "Integrated CLI coding agent with a native multi-model research runtime",
+  "type": "module",
+  "bin": {
+    "deep": "dist/cli/entry.js"
+  },
+  "scripts": {
+    "dev": "tsx src/cli/entry.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/cli/entry.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint . || echo 'lint not configured'",
+    "doctor": "tsx src/cli/entry.ts doctor",
+    "check-free-models": "node scripts/check-free-models.js"
+  },
+  "dependencies": {
+    "minimatch": "^10.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "license": "MIT"
+}

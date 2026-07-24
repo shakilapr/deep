@@ -1,0 +1,5 @@
+{
+  "fixtureId": "F18",
+  "task": "Why does maybeEnable return the wrong value?",
+  "note": "Intentionally inconclusive: root cause depends on an external env flag with no single definitive source location."
+}

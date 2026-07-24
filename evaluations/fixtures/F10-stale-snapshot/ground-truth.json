@@ -1,0 +1,5 @@
+{
+  "fixtureId": "F10",
+  "task": "Verify staleness detection after editing a cited file",
+  "relevantFiles": ["src/counter.ts"]
+}
