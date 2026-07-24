@@ -31,6 +31,9 @@ export async function runAgentLoop(
 ): Promise<AgentLoopResult> {
   const maxTurns = opts.maxTurns ?? 12;
   const maxToolCalls = opts.maxToolCalls ?? 30;
+  // Bound tool-result text so long conversations stay within provider input caps
+  // (free models often cap total request size at ~8MB).
+  const MAX_RESULT_CHARS = 6000;
   const role: AgentRole = deps.role ?? "main";
   const toolNames = deps.toolRuntime.list();
 
@@ -118,6 +121,9 @@ export async function runAgentLoop(
         resultText = JSON.stringify({ ok: result.ok, summary: result.summary, data: result.data });
       } catch (e) {
         resultText = JSON.stringify({ ok: false, error: (e as Error).message });
+      }
+      if (resultText.length > MAX_RESULT_CHARS) {
+        resultText = resultText.slice(0, MAX_RESULT_CHARS) + `…[truncated ${resultText.length - MAX_RESULT_CHARS} chars]`;
       }
       messages.push({ role: "tool", content: resultText, toolCallId: call.id });
     }

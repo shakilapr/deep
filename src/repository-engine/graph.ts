@@ -13,6 +13,12 @@ export interface GraphEdge {
   kind: EdgeKind;
   confidence: Confidence;
   symbol?: string;
+  /** File that declares `from` (caller). Scoped resolution avoids name collisions. */
+  fromFile?: string;
+  /** File that declares `to` (callee). */
+  toFile?: string;
+  /** Line in `toFile` where the callee is declared, when known. */
+  toLine?: number;
 }
 
 const CALL_RE = /([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g;
@@ -78,9 +84,14 @@ export class DependencyGraph {
           if (seen.has(callee)) continue;
           if (!declByName.has(callee)) continue;
           seen.add(callee);
+          const decls = declByName.get(callee) ?? [];
+          const decl = decls.find((d) => d.path === file) ?? decls[0];
           this.allEdges.push({
             from: sym.name,
             to: callee,
+            fromFile: file,
+            toFile: decl?.path,
+            toLine: decl?.startLine,
             kind: "call",
             confidence: "weak",
             symbol: sym.name,
@@ -119,12 +130,43 @@ export class DependencyGraph {
     return this.allEdges;
   }
 
-  getCallers(symbolName: string): GraphEdge[] {
-    return this.allEdges.filter((e) => e.kind === "call" && e.to === symbolName);
+  getCallers(symbolName: string, file?: string): GraphEdge[] {
+    return this.allEdges.filter(
+      (e) => e.kind === "call" && e.to === symbolName && (!file || e.toFile === file),
+    );
   }
 
-  getCallees(symbolName: string): GraphEdge[] {
-    return this.allEdges.filter((e) => e.kind === "call" && e.from === symbolName);
+  getCallees(symbolName: string, file?: string): GraphEdge[] {
+    return this.allEdges.filter(
+      (e) => e.kind === "call" && e.from === symbolName && (!file || e.fromFile === file),
+    );
+  }
+
+  /**
+   * Build a feasible call chain from an entry point down to `symbol` (BFS over
+   * call edges). Returns an ordered list of locations, or [] if unreachable.
+   * Used by the Path Analyst to establish reachability (qa.md Phase 3).
+   */
+  buildCallPath(symbol: string, file?: string, maxDepth = 8): GraphEdge[] {
+    const start = this.allEdges.filter(
+      (e) => e.kind === "call" && e.to === symbol && (!file || e.toFile === file),
+    );
+    if (start.length === 0) return [];
+    const visited = new Set<string>();
+    const path: GraphEdge[] = [];
+    const queue: GraphEdge[] = [...start];
+    while (queue.length > 0 && path.length < maxDepth) {
+      const e = queue.shift()!;
+      const key = `${e.from}@${e.fromFile}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+      path.push(e);
+      // Walk upward: who calls e.from?
+      for (const up of this.allEdges.filter((x) => x.kind === "call" && x.to === e.from)) {
+        queue.push(up);
+      }
+    }
+    return path;
   }
 
   /** Files that this file imports (its dependencies). */

@@ -62,13 +62,19 @@ export async function runWorker(
         role: "system",
         content:
           "You are a read-only code research worker. Answer only with cited source evidence. " +
-          "Return structured JSON with conclusion, confidence (0-1), and claims each linked to exact file/line evidence.",
+          "Return structured JSON with conclusion, confidence (0-1), and claims each linked to exact file/line evidence.\n" +
+          "RULES FOR EVIDENCE:\n" +
+          "1. Cite the PRECISE location of a suspected defect (a function/class/method body), not documentation.\n" +
+          "2. If the defect is inside a named declaration, you MUST set `symbol` to that exact name and give its real startLine/endLine.\n" +
+          "3. PREFER real source files (.ts/.tsx/.js) over documentation (.md). Never cite a doc file as the defect location; docs only describe intended behavior.\n" +
+          "4. Each claim's `evidence` must contain 1-3 references with path + startLine + endLine (and `symbol` when applicable).",
       },
       {
         role: "user",
         content:
           `ROLE: ${question.role}\nQUESTION: ${question.question}\n\n` +
-          `DETERMINISTIC CANDIDATES (do not invent others; only cite real ranges):\n${contextLines}`,
+          `DETERMINISTIC CANDIDATES (do not invent others; only cite real ranges):\n${contextLines}\n\n` +
+          `When a candidate shows a #symbol, prefer citing that symbol's exact startLine/endLine as the defect location.`,
       },
     ],
     structured: { jsonSchema: WORKER_SCHEMA },

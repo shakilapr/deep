@@ -1,5 +1,6 @@
 // Phase 08 — Unified model router
 import { Provider, ModelRequest, ModelResponse, ProviderError } from "../protocol/model.js";
+import { ModelQualityRegistry } from "./quality.js";
 import type { AgentRole } from "../protocol/events.js";
 import { Metrics } from "../observability/logging.js";
 import { EventBus } from "../observability/eventBus.js";
@@ -20,13 +21,19 @@ export interface RouterConfig {
   primary: string;
   fallbacks?: Record<string, string[]>;
   costTable?: Record<string, { in: number; out: number }>;
+  /** Enable semantic retry: treat empty research answers as soft failures. */
+  semanticRetry?: boolean;
+  /** Consecutive errors before a model's circuit opens. */
+  circuitBreakerThreshold?: number;
 }
 
 export class ModelRouter {
   private providers = new Map<string, Provider>();
   private modelToProvider = new Map<string, string>();
   private cooldowns = new Map<string, number>();
+  private failureStreak = new Map<string, number>();
   public metrics = new Metrics();
+  public readonly quality = new ModelQualityRegistry();
 
   constructor(
     private cfg: RouterConfig,

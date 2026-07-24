@@ -1,5 +1,5 @@
 // Phase 02 — CLI entrypoint (`deep`)
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, dirname, isAbsolute } from "node:path";
 import { loadConfig, redactForShow, ConfigError } from "../config/config.js";
@@ -9,10 +9,16 @@ import { Store, defaultDbLocations } from "../persistence/store.js";
 import { PolicyEngine } from "../policy/policy.js";
 import { ModelRouter } from "../model-router/router.js";
 import { MockProvider } from "../model-router/mock.js";
+import { HttpProvider } from "../model-router/http.js";
 import { buildToolRuntime } from "../coding-agent/tools/index.js";
 import { runAgentLoop } from "../agent-core/agentLoop.js";
 import { runResearch } from "../research-runtime/research.js";
+import { buildFindings } from "../research-runtime/grading.js";
+import { buildReport } from "../research-runtime/report.js";
+import { SuppressionStore } from "../research-runtime/suppressions.js";
+import { toSarif } from "../research-runtime/sarif.js";
 import { rebuildAll } from "../repository-engine/cacheInvalidation.js";
+import { DependencyGraph } from "../repository-engine/graph.js";
 import { SessionKernel } from "../agent-core/session.js";
 import { printMessage, printResearchProgress, printCost } from "./tui.js";
 import { metrics } from "../observability/logging.js";
@@ -33,6 +39,9 @@ Usage:
   deep trace               Print metrics + recent event summary
   deep cost                Print token/cost summary
   deep audit               Print the audit log for this repo
+  deep review <q> [A|B|C] [--tests] [--sarif=out.sarif]  Research bugs (read-only), emit L-graded findings + SARIF
+  deep graph [file]        Print the dependency graph (or one file's imports/importers)
+  deep log [--graph]      Print git log (or commit graph)
   deep evaluate <dir>      Run the evaluation harness on a fixture directory
   deep --help | -h         Show this help
   deep --version | -v      Show version
@@ -51,7 +60,10 @@ export type ParsedArgs =
   | { command: "trace" }
   | { command: "cost" }
   | { command: "audit" }
-  | { command: "evaluate"; fixtureDir: string };
+  | { command: "evaluate"; fixtureDir: string }
+  | { command: "graph"; target?: string }
+  | { command: "log" }
+  | { command: "review"; tier?: "A" | "B" | "C" | "D" | "E"; tests?: boolean; sarif?: string; question?: string };
 
 export function parseArgs(args: string[]): ParsedArgs {
   const [first, ...rest] = args;
@@ -69,7 +81,23 @@ export function parseArgs(args: string[]): ParsedArgs {
   if (first === "trace") return { command: "trace" };
   if (first === "cost") return { command: "cost" };
   if (first === "audit") return { command: "audit" };
+  if (first === "graph") return { command: "graph", target: rest[0] };
   if (first === "evaluate") return { command: "evaluate", fixtureDir: rest.join(" ") };
+  if (first === "log") return { command: "log" };
+  if (first === "review") {
+    const tier = (rest.find((r) => /^[A-E]$/i.test(r)) ?? "B").toUpperCase() as "A" | "B" | "C" | "D" | "E";
+    const sarifArg = rest.find((r) => r.startsWith("--sarif"));
+    let sarif: string | undefined;
+    if (sarifArg) {
+      const eq = sarifArg.indexOf("=");
+      sarif = eq >= 0 ? sarifArg.slice(eq + 1) : rest[rest.indexOf(sarifArg) + 1];
+    }
+    const question = rest
+      .filter((r) => !/^[A-E]$/i.test(r) && r !== "--tests" && !r.startsWith("--sarif") && r !== sarif)
+      .join(" ")
+      .trim() || undefined;
+    return { command: "review", tier, tests: rest.includes("--tests"), sarif, question };
+  }
   return { command: "task", task: [first, ...rest].join(" ") };
 }
 
@@ -96,7 +124,39 @@ interface Wiring {
   router: ModelRouter;
 }
 
-function wire(root: string): Wiring {
+// Zero-dependency .env loader (only sets keys not already present in env).
+function loadDotEnv(): void {
+  try {
+    const p = join(process.cwd(), ".env");
+    if (!existsSync(p)) return;
+    const text = readFileSync(p, "utf8");
+    for (const line of text.split("\n")) {
+      const t = line.trim();
+      if (!t || t.startsWith("#")) continue;
+      const i = t.indexOf("=");
+      if (i === -1) continue;
+      const k = t.slice(0, i).trim();
+      const v = t.slice(i + 1).trim();
+      if (!process.env[k]) process.env[k] = v;
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+// Phase 48 — Free-model primary + fallback chain (verified READY by check-free-models).
+const FREE_PRIMARY = "openai/gpt-oss-20b:free";
+const FREE_FALLBACKS = [
+  "cohere/north-mini-code:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "nvidia/nemotron-3-nano-30b-a3b:free",
+  "inclusionai/ling-3.0-flash:free",
+  "poolside/laguna-s-2.1:free",
+  "nvidia/nemotron-nano-9b-v2:free",
+];
+
+export function wire(root: string): Wiring {
+  loadDotEnv();
   const bus = new EventBus();
   const store = new Store(defaultDbLocations().project(root));
   let cfg: ReturnType<typeof loadConfig> | undefined;
@@ -112,7 +172,12 @@ function wire(root: string): Wiring {
     requireApprovalForWrite: cfg?.policy?.requireApprovalForWrite ?? false,
     requireApprovalForCommand: cfg?.policy?.requireApprovalForCommand ?? ["high"],
   });
-  const router = new ModelRouter({ primary: cfg?.models?.main ?? "mock/main" }, bus);
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  const primary = process.env.DEEP_MODEL ?? (apiKey ? FREE_PRIMARY : cfg?.models?.main ?? "mock/main");
+  const router = new ModelRouter(
+    { primary, fallbacks: apiKey ? { [FREE_PRIMARY]: FREE_FALLBACKS } : undefined },
+    bus,
+  );
   const mock = new MockProvider(
     {
       // Produce structured research-worker reports that cite real candidate files
@@ -140,6 +205,15 @@ function wire(root: string): Wiring {
     "mock",
   );
   router.register(mock, ["mock/main", "mock/worker", "mock/critic"]);
+  if (apiKey) {
+    const http = new HttpProvider({
+      baseUrl: process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1",
+      apiKey,
+      headers: { "HTTP-Referer": "https://github.com/opencode", "X-Title": "Deep" },
+      defaultModel: FREE_PRIMARY,
+    });
+    router.register(http, [FREE_PRIMARY, ...FREE_FALLBACKS]);
+  }
   return { root, bus, store, engine, policy, router };
 }
 
@@ -147,6 +221,7 @@ export async function runCommand(argv: string[], deps: RunDeps = {}): Promise<nu
   const out = deps.out ?? ((line: string) => process.stdout.write(line + "\n"));
   const root = deps.cwd ?? process.cwd();
   const parsed = parseArgs(argv);
+  const [first, ...rest] = argv;
 
   switch (parsed.command) {
     case "help":
@@ -244,6 +319,27 @@ export async function runCommand(argv: string[], deps: RunDeps = {}): Promise<nu
       out(JSON.stringify(report, null, 2));
       return 0;
     }
+    case "graph": {
+      const engine = new RepositoryEngine(root);
+      engine.refresh();
+      const g = new DependencyGraph(engine).build();
+      if (parsed.target) {
+        out(`imports-of ${parsed.target}:`);
+        for (const e of g.getDependents(parsed.target)) out(`  -> ${e}`);
+        out(`importers-of ${parsed.target}:`);
+        for (const e of g.getImporters(parsed.target)) out(`  <- ${e}`);
+      } else {
+        out(`dependency graph: ${g.edges().length} edges`);
+        for (const e of g.edges().slice(0, 50)) out(`  ${e.from} --${e.kind}--> ${e.to}`);
+      }
+      return 0;
+    }
+    case "log": {
+      const engine = new RepositoryEngine(root);
+      const log = engine.git.log({ graph: rest.includes("--graph") });
+      out(log || "(not a git repository)");
+      return 0;
+    }
     case "research": {
       const w = wire(root);
       printResearchProgress(
@@ -259,7 +355,13 @@ export async function runCommand(argv: string[], deps: RunDeps = {}): Promise<nu
         { question: parsed.question, depth: "normal" },
         { engine: w.engine, router: w.router, root: w.root, snapshotId },
       );
-      out(JSON.stringify(capsule, null, 2));
+      const supp = new SuppressionStore(w.store);
+      const findings = await buildFindings(capsule, {
+        engine: w.engine,
+        verification: { allowTestExecution: false },
+        store: supp,
+      });
+      out(JSON.stringify(buildReport(capsule, findings), null, 2));
       printMessage(
         "assistant",
         `Research done: ${capsule.claims.length} claims, ${capsule.locations.length} verified locations, confidence ${capsule.conclusion.confidenceLabel}.`,
@@ -272,6 +374,38 @@ export async function runCommand(argv: string[], deps: RunDeps = {}): Promise<nu
           outputTokens: capsule.usage.outputTokens,
           costUsd: capsule.usage.estimatedCostUsd,
         },
+        out,
+      );
+      return 0;
+    }
+    case "review": {
+      // qa.md CI tiers. Read-only research + reporting; never edits the repo.
+      const depth = parsed.tier === "A" ? "quick" : parsed.tier === "C" || parsed.tier === "D" ? "deep" : "normal";
+      const w = wire(root);
+      const snapshotId = w.engine.snapshots.create().id;
+      const capsule = await runResearch(
+        { question: parsed.question ?? "Audit this codebase for defects", depth, budget: { timeoutSeconds: 600 } },
+        { engine: w.engine, router: w.router, root: w.root, snapshotId },
+      );
+      const supp = new SuppressionStore(w.store);
+      const findings = await buildFindings(capsule, {
+        engine: w.engine,
+        verification: { allowTestExecution: parsed.tests, minimumConfidence: 0.4 },
+        store: supp,
+      });
+      const report = buildReport(capsule, findings);
+      if (parsed.sarif) {
+        writeFileSync(parsed.sarif, JSON.stringify(toSarif(report), null, 2));
+        out(`SARIF written to ${parsed.sarif}`);
+      } else {
+        out(JSON.stringify(report, null, 2));
+      }
+      printMessage(
+        "assistant",
+        `Audit (tier ${parsed.tier}) done: ${findings.length} findings — ` +
+          `L0:${report.levelCounts.L0} L1:${report.levelCounts.L1} L2:${report.levelCounts.L2} ` +
+          `L3:${report.levelCounts.L3} L4:${report.levelCounts.L4}. ` +
+          `May block merge: ${report.mayBlockMerge.length}.`,
         out,
       );
       return 0;

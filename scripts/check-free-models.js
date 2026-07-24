@@ -23,14 +23,24 @@ function loadEnv() {
 
 loadEnv();
 
-const API_KEY = process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY;
+const API_KEY = process.env.OPENROUTER_API_KEY;
 
 if (!API_KEY) {
   console.error('❌ Error: OPENROUTER_API_KEY is not set in environment or .env file.');
   process.exit(1);
 }
 
-// Known free model candidate slugs
+// Recommended Models Map by Category
+const RECOMMENDED_BY_CATEGORY = {
+  'Agent Orchestration': 'nvidia/nemotron-3-super-120b-a12b:free',
+  'Coding & Agentic Work': 'cohere/north-mini-code:free',
+  'Deep Research (1M Context)': 'nvidia/nemotron-3-ultra-550b-a55b:free',
+  'Multimodal & Reasoning': 'google/gemma-4-31b-it:free',
+  'Cost-Efficient MoE': 'google/gemma-4-26b-a4b-it:free',
+  'Low Latency Inference': 'openai/gpt-oss-20b:free'
+};
+
+// Candidate free models pool
 const KNOWN_FREE_MODELS = [
   'nvidia/nemotron-3-super-120b-a12b:free',
   'nvidia/nemotron-3-ultra-550b-a55b:free',
@@ -43,6 +53,7 @@ const KNOWN_FREE_MODELS = [
   'inclusionai/ling-3.0-flash:free',
   'poolside/laguna-s-2.1:free',
   'poolside/laguna-xs-2.1:free',
+  'poolside/laguna-m.1:free',
   'nvidia/nemotron-nano-12b-v2-vl:free',
   'nvidia/nemotron-nano-9b-v2:free',
   'nvidia/nemotron-3.5-content-safety:free'
@@ -110,10 +121,10 @@ async function probeModel(modelId, timeoutMs = 8000) {
       const tokensUsed = data.usage ? (data.usage.total_tokens || 2) : 2;
       return {
         model: modelId,
-        status: 'OK',
+        status: 'READY',
         latency,
         tokensUsed,
-        error: null
+        note: `${latency}ms`
       };
     } else {
       const errText = await res.text();
@@ -121,15 +132,15 @@ async function probeModel(modelId, timeoutMs = 8000) {
       try {
         const errJson = JSON.parse(errText);
         if (errJson.error && errJson.error.message) {
-          msg = `${res.status}: ${errJson.error.message}`;
+          msg = errJson.error.message;
         }
       } catch (_) {}
       return {
         model: modelId,
-        status: 'FAIL',
+        status: 'BUSY/OFFLINE',
         latency,
         tokensUsed: 0,
-        error: msg
+        note: msg
       };
     }
   } catch (err) {
@@ -138,23 +149,27 @@ async function probeModel(modelId, timeoutMs = 8000) {
     const isTimeout = err.name === 'AbortError';
     return {
       model: modelId,
-      status: 'FAIL',
+      status: 'BUSY/OFFLINE',
       latency,
       tokensUsed: 0,
-      error: isTimeout ? 'Timeout (>8s)' : err.message
+      note: isTimeout ? 'Timeout (>8s)' : err.message
     };
   }
 }
 
 async function main() {
-  console.log('🔍 Fetching available free models from OpenRouter...');
+  console.log('🌟 RECOMMENDED MODELS BY USE CASE:');
+  for (const [category, model] of Object.entries(RECOMMENDED_BY_CATEGORY)) {
+    console.log(`  • [${category.padEnd(26, ' ')}]: ${model}`);
+  }
+
+  console.log('\n🔍 Gathering candidate free models from OpenRouter catalog...');
   const dynamicModels = await fetchDynamicFreeModels();
 
   const modelSet = new Set([...KNOWN_FREE_MODELS, ...dynamicModels]);
-  // Enforce STRICT policy: model MUST end with :free
   const targetModels = Array.from(modelSet).filter(m => m.endsWith(':free'));
 
-  console.log(`⚡ Testing ${targetModels.length} candidate free models with ultra-low token probe (1 token prompt, max 1 token output)...`);
+  console.log(`⚡ Testing all ${targetModels.length} candidate free models (~2 tokens per probe)...`);
   console.log('--------------------------------------------------------------------------------');
 
   const results = [];
@@ -165,32 +180,15 @@ async function main() {
     results.push(...batchResults);
   }
 
-  const working = results.filter(r => r.status === 'OK');
-  const failed = results.filter(r => r.status === 'FAIL');
-
-  console.log('\n✅ WORKING FREE MODELS (READY TO USE):');
-  if (working.length === 0) {
-    console.log('  (No working free models responded at this moment)');
-  } else {
-    working.sort((a, b) => a.latency - b.latency);
-    working.forEach(r => {
-      console.log(`  • [${r.latency}ms] ${r.model} (Tokens used: ${r.tokensUsed})`);
-    });
-  }
-
-  if (failed.length > 0) {
-    console.log('\n❌ UNAVAILABLE / RATE-LIMITED FREE MODELS:');
-    failed.forEach(r => {
-      console.log(`  • ${r.model} -> ${r.error}`);
-    });
-  }
+  console.log('\nREAL-TIME FREE MODEL STATUS:');
+  results.forEach((r, idx) => {
+    const icon = r.status === 'READY' ? '🟢' : '🟡';
+    console.log(`  ${(idx + 1).toString().padStart(2, ' ')}. ${icon} [${r.status.padEnd(12, ' ')}] ${r.model.padEnd(50, ' ')} (${r.note})`);
+  });
 
   console.log('--------------------------------------------------------------------------------');
-  console.log(`Summary: ${working.length}/${targetModels.length} free models are online and responsive.`);
-  
-  if (working.length > 0) {
-    console.log(`\n💡 Recommended primary model right now: ${working[0].model}`);
-  }
+  const readyCount = results.filter(r => r.status === 'READY').length;
+  console.log(`Summary: ${readyCount}/${targetModels.length} candidate free models are responsive right now.`);
 }
 
 main();

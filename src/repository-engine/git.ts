@@ -58,8 +58,9 @@ export class GitIntegration {
     return this.safeRun(args) ?? "";
   }
 
-  log(opts: { maxCount?: number; paths?: string[] } = {}): string {
+  log(opts: { maxCount?: number; paths?: string[]; graph?: boolean } = {}): string {
     const args = ["log", `--max-count=${opts.maxCount ?? 20}`, "--oneline"];
+    if (opts.graph) args.push("--graph");
     if (opts.paths) args.push("--", ...opts.paths);
     return this.safeRun(args) ?? "";
   }
