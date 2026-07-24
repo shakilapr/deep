@@ -14,7 +14,6 @@ describe("Phase 42 — cache invalidation", () => {
     cpSync(FIX, root, { recursive: true });
     const engine = new RepositoryEngine(root);
     engine.refresh();
-    engine.graph.build();
     expect(engine.index.get("src/control/command-loop.ts")).toBeDefined();
     expect(engine.symbols.symbolsInFile("src/control/command-loop.ts").length).toBeGreaterThan(0);
 

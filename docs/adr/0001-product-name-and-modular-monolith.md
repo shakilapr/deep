@@ -30,6 +30,24 @@ Two decisions were open:
 
 ## Consequences
 - `deep` installs and runs from a single `npm install` + build; zero native dependencies.
-- All 26 phases (M0–M3) are implemented and covered by automated tests.
+- All 47 work-plan phases (M0–M7) are implemented and covered by automated tests (80 tests
+  across 9 suites; `tsc --noEmit` and `npm run build` are green).
 - A future split into the planned pnpm packages is mechanical (move each `src/` module to
   its own package and re-point imports at `protocol`).
+
+## Implementation status (all milestones)
+- M0 Skeleton (01–04): done. M1 Basic Agent (05–13, 15): done. M2 Repository Intelligence
+  (14, 16–20): done. M3 Research MVP (21–26): done.
+- M4 Research Swarm (27–33): scheduler, planner, contradiction, critic, follow-up, stopping,
+  semantic reliability — done.
+- M5 Production Safety (34–37): policy, audit log, secret protection, command approval/sandbox
+  — done.
+- M6 Advanced Intelligence (38–42): LSP fallback, dependency graph, test mapping, git history,
+  cache invalidation — done.
+- M7 Product Readiness (43–47): compaction, observability (trace/cost), evaluation harness,
+  packaging (build + doctor + index --rebuild), documentation — done.
+
+## Notes / deliberate deviations (swappable)
+- Pure-TS atomic store instead of `node:sqlite` (same interface; SQLite drops in).
+- Regex-based symbol extractor instead of tree-sitter (same `SymbolIndex` API).
+- LSP is implemented with graceful syntax fallback (no external server required to run).

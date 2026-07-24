@@ -138,6 +138,17 @@ export class DependencyGraph {
     ];
   }
 
+  /** Files that import the given file. */
+  getImporters(file: string): string[] {
+    return [
+      ...new Set(
+        this.allEdges
+          .filter((e) => e.kind === "import" && e.to === file)
+          .map((e) => e.from),
+      ),
+    ];
+  }
+
   /** Phase 42 — drop all edges touching a changed file so they are rebuilt on next build(). */
   invalidateFile(file: string): void {
     this.allEdges = this.allEdges.filter((e) => e.from !== file && e.to !== file);

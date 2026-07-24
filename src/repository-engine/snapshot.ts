@@ -15,7 +15,7 @@ export interface RepositorySnapshot {
 
 function git(root: string, args: string[]): string | undefined {
   try {
-    return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } }).trim();
   } catch {
     return undefined;
   }

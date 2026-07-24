@@ -17,7 +17,7 @@ export class GitIntegration {
   constructor(private root: string) {}
 
   private run(args: string[]): string {
-    return execFileSync("git", args, { cwd: this.root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    return execFileSync("git", args, { cwd: this.root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } }).trim();
   }
 
   private isRepo(): boolean {
