@@ -10,6 +10,7 @@ import { PolicyEngine } from "../policy/policy.js";
 import { ModelRouter } from "../model-router/router.js";
 import { MockProvider } from "../model-router/mock.js";
 import { HttpProvider } from "../model-router/http.js";
+import { ReplayProvider, loadReplayFile } from "../model-router/replay.js";
 import { buildToolRuntime } from "../coding-agent/tools/index.js";
 import { runAgentLoop } from "../agent-core/agentLoop.js";
 import { runResearch } from "../research-runtime/research.js";
@@ -175,7 +176,7 @@ export function wire(root: string): Wiring {
   const apiKey = process.env.OPENROUTER_API_KEY;
   const primary = process.env.DEEP_MODEL ?? (apiKey ? FREE_PRIMARY : cfg?.models?.main ?? "mock/main");
   const router = new ModelRouter(
-    { primary, fallbacks: apiKey ? { [FREE_PRIMARY]: FREE_FALLBACKS } : undefined },
+    { primary, fallbacks: apiKey ? { [FREE_PRIMARY]: FREE_FALLBACKS } : undefined, semanticRetry: true },
     bus,
   );
   const mock = new MockProvider(
@@ -213,6 +214,11 @@ export function wire(root: string): Wiring {
       defaultModel: FREE_PRIMARY,
     });
     router.register(http, [FREE_PRIMARY, ...FREE_FALLBACKS]);
+  }
+  const replayFile = process.env.DEEP_REPLAY;
+  if (replayFile) {
+    const responses = loadReplayFile(replayFile);
+    router.register(new ReplayProvider(responses), [FREE_PRIMARY, ...FREE_FALLBACKS]);
   }
   return { root, bus, store, engine, policy, router };
 }

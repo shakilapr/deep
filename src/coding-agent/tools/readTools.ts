@@ -4,6 +4,7 @@ import { join, relative } from "node:path";
 import { Tool, ToolContext, ToolResult } from "../../protocol/tools.js";
 import { safeResolve, isIgnored } from "../../repository-engine/fs.js";
 import { RepositoryEngine } from "../../repository-engine/engine.js";
+import { DependencyGraph } from "../../repository-engine/graph.js";
 import { isBlockedPath } from "../../policy/secret.js";
 
 const MAX_READ_BYTES = 200_000;
@@ -98,5 +99,38 @@ export function readTools(engine: RepositoryEngine): Tool[] {
     },
   };
 
-  return [listFiles, readFile, readRange, searchText, overview];
+  const findReferences: Tool = {
+    definition: {
+      name: "find_references",
+      description: "Find callers/importers of a symbol (optionally scoped to a file).",
+      inputSchema: {
+        type: "object",
+        properties: { symbol: { type: "string" }, path: { type: "string" } },
+        required: ["symbol"],
+      },
+    },
+    allowedRoles: ["main", "research-worker"],
+    async run(args: any): Promise<ToolResult> {
+      const refs = engine.findReferences(args.symbol, args.path);
+      return { ok: true, data: { references: refs.slice(0, 50) } };
+    },
+  };
+
+  const fileReferences: Tool = {
+    definition: {
+      name: "file_references",
+      description: "Show files this file imports (dependents) and files that import it (importers).",
+      inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
+    },
+    allowedRoles: ["main", "research-worker"],
+    async run(args: any): Promise<ToolResult> {
+      const g = new DependencyGraph(engine).build();
+      return {
+        ok: true,
+        data: { imports: g.getDependents(args.path), importedBy: g.getImporters(args.path) },
+      };
+    },
+  };
+
+  return [listFiles, readFile, readRange, searchText, overview, findReferences, fileReferences];
 }

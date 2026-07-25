@@ -75,17 +75,23 @@ export class ModelRouter {
     this.cooldowns.set(modelId, Date.now() + ms);
   }
 
-  /** Select a model id for a role, honoring cooldowns. */
+  /** Select a model id for a role, honoring cooldowns + capability scores. */
   selectForRole(_role: AgentRole, preferred?: string): string {
     const candidates = preferred ? [preferred, ...(this.cfg.fallbacks?.[preferred] ?? [])] : [this.cfg.primary];
-    for (const m of candidates) {
-      if (!this.isCooling(m)) return m;
+    const available = candidates.filter((m) => !this.isCooling(m));
+    const pool = available.length > 0 ? available : candidates;
+    // When we have quality data, prefer higher-reliability models (capability registry).
+    const hasData = pool.some((m) => this.quality.reliability(m, _role) !== 0.5);
+    if (hasData) {
+      return [...pool].sort((a, b) => this.quality.reliability(b, _role) - this.quality.reliability(a, _role))[0]!;
     }
-    return candidates[0]!;
+    return pool[0]!;
   }
 
   async complete(req: ModelRequest): Promise<ModelResponse> {
     const chain = [req.modelId, ...(this.cfg.fallbacks?.[req.modelId] ?? [])];
+    const semanticRetry = this.cfg.semanticRetry ?? false;
+    const breakerThreshold = this.cfg.circuitBreakerThreshold ?? 3;
     let lastErr: unknown;
     for (const modelId of chain) {
       if (this.isCooling(modelId)) continue;
@@ -93,6 +99,13 @@ export class ModelRouter {
       try {
         const resp = await provider.complete({ ...req, modelId });
         const cost = this.cost(modelId, resp.usage.inputTokens, resp.usage.outputTokens);
+        // Capability learning: record a successful, schema-valid sample.
+        this.quality.record(modelId, {
+          schemaValid: true,
+          costUsd: cost,
+          latencyMs: 0,
+        });
+        this.failureStreak.set(modelId, 0);
         this.metrics.inc("model.calls");
         this.bus.emit({
           type: "ModelRequestCompleted",
@@ -108,11 +121,28 @@ export class ModelRouter {
           },
           timestamp: Date.now(),
         });
+        // Semantic retry: a research answer with no content and no tool calls is
+        // a soft failure (we observed free models returning empty finals). Try next.
+        if (semanticRetry && req.role !== "main" && resp.content.trim() === "" && (!resp.toolCalls || resp.toolCalls.length === 0)) {
+          this.quality.recordSemanticFailure(modelId, "empty_response");
+          lastErr = new ProviderError("empty_response", "model returned empty answer");
+          continue;
+        }
         return resp;
       } catch (e) {
         lastErr = e;
         if (e instanceof ProviderError && (e.kind === "rate_limit" || e.kind === "unavailable")) {
           this.markCooldown(modelId);
+        }
+        // Circuit breaker: open the route after repeated consecutive failures.
+        const streak = (this.failureStreak.get(modelId) ?? 0) + 1;
+        this.failureStreak.set(modelId, streak);
+        if (streak >= breakerThreshold) {
+          this.markCooldown(modelId, 120_000);
+        }
+        if (e instanceof ProviderError && e.kind === "auth") {
+          // Auth is not transient; do not retry this model.
+          this.markCooldown(modelId, 600_000);
         }
       }
     }

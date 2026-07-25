@@ -65,6 +65,14 @@ export class GitIntegration {
     return this.safeRun(args) ?? "";
   }
 
+  /** Porcelain blame for a file (optionally a single line). */
+  blame(path: string, line?: number): string {
+    const args = ["blame", "-p", "--line-porcelain"];
+    if (line) args.push("-L", `${line},${line}`);
+    args.push(path);
+    return this.safeRun(args) ?? "";
+  }
+
   /** Deny push by default (Phase 14 + policy). */
   push(_remote?: string, _branch?: string): never {
     throw new Error("git push is disabled by default policy");
