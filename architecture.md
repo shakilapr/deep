@@ -9,6 +9,32 @@
 **Model strategy:** Frontier model for implementation; free or inexpensive models for repository research
 **Deployment model:** One installable CLI product with optional internally managed worker processes
 
+## Current Implementation & Deviations (as built)
+
+The implementation is a functional subset of this architecture, plus an added
+**qa.md-grade bug-research pipeline** (not in the original vision). Built modules:
+
+- **Live HTTP provider** (`src/model-router/http.ts`): OpenAI-compatible (OpenRouter
+  free models) with `.env` loading and a free-model fallback chain.
+- **Bug-research pipeline** (`src/research-runtime/`): `finding` (L0–L5 evidence
+  ladder), `judge`, `scope`, `context`, `pathAnalyst`, `skeptic`, `repro`,
+  `suppressions`, `grading`, `report`, `sarif`. Exposed via `deep review <q> [tier]
+  [--tests] [--sarif=...]` — strictly **read-only / reporting**.
+- **Replay mode** (`src/model-router/replay.ts`): record/replay provider for offline regression.
+- **Model router**: capability-registry scoring, **semantic retry** (empty research
+  answers), and a **circuit breaker**.
+- **Repository references**: `engine.findReferences` / `findImplementations` / `getBlame`
+  + `find_references` / `file_references` tools. Call edges are now **file+line scoped**.
+- **Optional LSP adapter** (`src/repository-engine/lsp.ts`, off by default via `DEEP_LSP=1`)
+  for accurate go-to-definition/references; falls back to the regex symbol index.
+- **Git worktrees** (`src/workspace/`) for isolated edits (main role only).
+- **Optional embeddings memory** (`src/memory/embeddingMemory.ts`) with a deterministic
+  local fallback; OpenAI-compatible when configured.
+
+**Future / not implemented** (vision items, deferred): interactive TUI REPL,
+worker-thread concurrency, real SQLite (ADR 0001 keeps the pure-TS store),
+production telemetry. `src/protocol/*` remains a fixed contract (unmodified).
+
 ---
 
 # 1. Executive Summary
