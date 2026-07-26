@@ -20,6 +20,7 @@ import { SuppressionStore } from "../research-runtime/suppressions.js";
 import { toSarif } from "../research-runtime/sarif.js";
 import { rebuildAll } from "../repository-engine/cacheInvalidation.js";
 import { DependencyGraph } from "../repository-engine/graph.js";
+import { createLspProvider } from "../repository-engine/lsp.js";
 import { SessionKernel } from "../agent-core/session.js";
 import { printMessage, printResearchProgress, printCost } from "./tui.js";
 import { metrics } from "../observability/logging.js";
@@ -167,6 +168,7 @@ export function wire(root: string): Wiring {
     /* fall back to defaults */
   }
   const engine = new RepositoryEngine(root, cfg?.repository);
+  engine.lsp = createLspProvider(process.env.DEEP_LSP === "1", root);
   engine.refresh();
   const policy = new PolicyEngine({
     denyGitPush: cfg?.policy?.denyGitPush ?? true,

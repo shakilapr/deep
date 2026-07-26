@@ -4,7 +4,6 @@
 import { spawn, ChildProcess } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { SymbolIndex } from "./symbols.js";
 
 export interface LspReferenceResult {
   path: string;
@@ -15,8 +14,8 @@ export interface LspReferenceResult {
 
 export interface LspReferenceProvider {
   readonly available: boolean;
-  findReferences(path: string, line: number, character: number): LspReferenceResult[];
-  getDefinition(path: string, line: number, character: number): LspReferenceResult | undefined;
+  findReferences(path: string, line: number, character: number): Promise<LspReferenceResult[]>;
+  getDefinition(path: string, line: number, character: number): Promise<LspReferenceResult | undefined>;
   dispose(): void;
 }
 
@@ -29,9 +28,7 @@ interface Pending {
 function tsServerPath(): string | undefined {
   try {
     const pkg = require.resolve("typescript");
-    // pkg is .../typescript/lib/typescript.js -> tsserver.js sits beside it
-    const dir = dirname(pkg);
-    const p = join(dir, "tsserver.js");
+    const p = join(dirname(pkg), "tsserver.js");
     return existsSync(p) ? p : undefined;
   } catch {
     return undefined;
@@ -39,7 +36,7 @@ function tsServerPath(): string | undefined {
 }
 
 /** Approximate the 1-based column of `symbol` on `line` (best-effort). */
-function columnOf(path: string, line: number, symbol: string): number {
+export function columnOf(path: string, line: number, symbol: string): number {
   try {
     const lines = readFileSync(path, "utf8").split("\n");
     const text = lines[line - 1] ?? "";
@@ -56,10 +53,8 @@ export class TsServerAdapter implements LspReferenceProvider {
   private seq = 0;
   private pending = new Map<number, Pending>();
   private buffer = "";
-  private root: string;
 
   constructor(root: string) {
-    this.root = root;
     const server = tsServerPath();
     if (!server) return;
     try {
@@ -123,37 +118,23 @@ export class TsServerAdapter implements LspReferenceProvider {
     }
   }
 
-  findReferences(path: string, line: number, character: number): LspReferenceResult[] {
-    if (!this.available) return [];
-    const body = (this.safeRequest as any)("references", { file: path, line, offset: character }) as any;
-    void body;
-    // safeRequest returns a promise; wrap synchronously via a microtask cache is not trivial,
-    // so we implement the async variant below and this sync shim returns [].
-    return [];
-  }
-
-  async findReferencesAsync(path: string, line: number, character: number): Promise<LspReferenceResult[]> {
+  async findReferences(path: string, line: number, character: number): Promise<LspReferenceResult[]> {
     if (!this.available) return [];
     const body = await this.safeRequest<any>("references", { file: path, line, offset: character });
     if (!body || !Array.isArray(body.refs)) return [];
     return body.refs.map((r: any) => ({
       path: r.file,
-      startLine: r.start?.line ?? r.start?.line ?? 0,
+      startLine: r.start?.line ?? 0,
       endLine: r.end?.line ?? r.start?.line ?? 0,
-      symbol: undefined,
     }));
   }
 
-  async getDefinitionAsync(path: string, line: number, character: number): Promise<LspReferenceResult | undefined> {
+  async getDefinition(path: string, line: number, character: number): Promise<LspReferenceResult | undefined> {
     if (!this.available) return undefined;
     const body = await this.safeRequest<any>("definition", { file: path, line, offset: character });
     const d = Array.isArray(body) ? body[0] : body;
     if (!d) return undefined;
-    return {
-      path: d.file,
-      startLine: d.start?.line ?? 0,
-      endLine: d.end?.line ?? d.start?.line ?? 0,
-    };
+    return { path: d.file, startLine: d.start?.line ?? 0, endLine: d.end?.line ?? d.start?.line ?? 0 };
   }
 
   dispose(): void {
@@ -166,13 +147,9 @@ export class TsServerAdapter implements LspReferenceProvider {
   }
 }
 
-/**
- * Build an LSP provider when enabled. Returns undefined when disabled or the
- * tsserver binary is unavailable, so callers fall back to the graph/symbol engine.
- */
-export function createLspProvider(enabled: boolean, root: string, symbols?: SymbolIndex): LspReferenceProvider | undefined {
+/** Build an LSP provider when enabled; undefined when disabled/unavailable. */
+export function createLspProvider(enabled: boolean, root: string): LspReferenceProvider | undefined {
   if (!enabled) return undefined;
   const adapter = new TsServerAdapter(root);
-  if (!adapter.available) return undefined;
-  return adapter;
+  return adapter.available ? adapter : undefined;
 }

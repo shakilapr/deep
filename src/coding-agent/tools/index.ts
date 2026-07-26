@@ -7,6 +7,7 @@ import { readTools } from "./readTools.js";
 import { patchTools } from "./patch.js";
 import { commandTools } from "./command.js";
 import { gitTools } from "./gitTools.js";
+import { workspaceTools } from "./workspaceTools.js";
 
 export function buildToolRuntime(
   engine: RepositoryEngine,
@@ -19,6 +20,7 @@ export function buildToolRuntime(
     ...patchTools(engine),
     ...commandTools(engine),
     ...gitTools(engine),
+    ...workspaceTools(engine.root),
   ]) {
     runtime.register(tool);
   }

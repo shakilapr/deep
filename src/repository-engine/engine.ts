@@ -1,15 +1,18 @@
 // Repository engine facade (aggregates index, search, symbols, snapshot, git)
+import { readFileSync } from "node:fs";
 import { FilesystemIndex } from "./index.js";
 import { LexicalSearch } from "./search.js";
 import { SymbolIndex } from "./symbols.js";
 import { SnapshotService, RepositorySnapshot } from "./snapshot.js";
 import { GitIntegration, GitStatus } from "./git.js";
 import { DependencyGraph } from "./graph.js";
+import type { LspReferenceProvider } from "./lsp.js";
 
 export interface RepoConfig {
   ignore?: string[];
   generatedPatterns?: string[];
   vendoredPatterns?: string[];
+  lsp?: { enabled?: boolean };
 }
 
 export class RepositoryEngine {
@@ -18,6 +21,8 @@ export class RepositoryEngine {
   readonly symbols: SymbolIndex;
   readonly snapshots: SnapshotService;
   readonly git: GitIntegration;
+  /** Optional LSP provider (opt-in). When set, reference lookups prefer it. */
+  lsp?: LspReferenceProvider;
 
   constructor(
     public root: string,
@@ -75,5 +80,29 @@ export class RepositoryEngine {
   /** Git blame for a path (optional single line). */
   getBlame(path: string, line?: number): string {
     return this.git.blame(path, line);
+  }
+
+  /**
+   * LSP-accurate references for a symbol, when an LSP provider is configured.
+   * Falls back to [] (callers then use the graph-based `findReferences`).
+   */
+  async findReferencesLsp(symbol: string, file?: string): Promise<{ path: string; startLine: number; endLine: number; symbol?: string }[]> {
+    if (!this.lsp || !this.lsp.available) return [];
+    const sym = file ? this.symbols.get(symbol, file) : this.symbols.get(symbol);
+    if (!sym) return [];
+    const col = columnOfSafe(sym.path, sym.startLine, sym.name);
+    const refs = await this.lsp.findReferences(sym.path, sym.startLine, col);
+    return refs.map((r) => ({ path: r.path, startLine: r.startLine, endLine: r.endLine, symbol }));
+  }
+}
+
+function columnOfSafe(path: string, line: number, symbol: string): number {
+  try {
+    const lines = readFileSync(path, "utf8").split("\n");
+    const text = lines[line - 1] ?? "";
+    const idx = text.indexOf(symbol);
+    return idx >= 0 ? idx + 1 : 1;
+  } catch {
+    return 1;
   }
 }
