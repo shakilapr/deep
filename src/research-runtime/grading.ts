@@ -30,12 +30,24 @@ export async function buildFindings(capsule: ResearchCapsule, deps: GradeDeps): 
   let n = 0;
 
   for (const loc of capsule.locations) {
+    // Resolve the enclosing symbol from the cited line when the worker omitted it,
+    // so PathAnalyst can establish a feasible call path (higher L-level).
+    let symbol = loc.symbol;
+    if (!symbol) {
+      try {
+        const syms = deps.engine.symbols.symbolsInFile(loc.path);
+        const enclosing = syms.find((s) => s.startLine <= loc.startLine && s.endLine >= loc.startLine);
+        symbol = enclosing?.name;
+      } catch {
+        /* ignore */
+      }
+    }
     const location = {
       path: loc.path,
       revision: deps.revision,
       startLine: loc.startLine,
       endLine: loc.endLine,
-      symbol: loc.symbol,
+      symbol,
     };
 
     const ctx = collectContext(deps.engine, location);

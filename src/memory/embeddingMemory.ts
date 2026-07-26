@@ -28,7 +28,8 @@ export function localEmbedding(text: string): number[] {
 
 function cosine(a: number[], b: number[]): number {
   let dot = 0;
-  for (let i = 0; i < a.length; i++) dot += a[i] * b[i];
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) dot += (a[i] ?? 0) * (b[i] ?? 0);
   return dot;
 }
 
@@ -52,7 +53,11 @@ export class HttpEmbeddingClient implements EmbeddingClient {
     });
     if (!res.ok) throw new Error(`embeddings HTTP ${res.status}`);
     const data = (await res.json()) as any;
-    return data.data[0].embedding as number[];
+    const arr = data?.data;
+    if (!Array.isArray(arr) || arr.length === 0) throw new Error("embeddings response malformed");
+    const first = arr[0];
+    if (!first || !Array.isArray(first.embedding)) throw new Error("embeddings response malformed");
+    return first.embedding as number[];
   }
 }
 

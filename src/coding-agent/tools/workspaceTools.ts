@@ -20,7 +20,7 @@ export function workspaceTools(root: string): Tool[] {
         const path = createWorktree(root, String(args.name), args.branch ? String(args.branch) : undefined);
         return { ok: true, data: { path } };
       } catch (e) {
-        return { ok: false, error: (e as Error).message };
+        return { ok: false, data: { error: (e as Error).message } };
       }
     },
   };
