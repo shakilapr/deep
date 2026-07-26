@@ -4,6 +4,7 @@
 import { spawn, ChildProcess } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { SymbolIndex } from "./symbols.js";
 
 export interface LspReferenceResult {
   path: string;
@@ -152,4 +153,23 @@ export function createLspProvider(enabled: boolean, root: string): LspReferenceP
   if (!enabled) return undefined;
   const adapter = new TsServerAdapter(root);
   return adapter.available ? adapter : undefined;
+}
+
+/**
+ * Resolve a symbol's definition. Prefers LSP when available, otherwise falls
+ * back to the syntax/symbol index (Phase 38 behavior).
+ */
+export async function resolveDefinition(
+  engine: { symbols: SymbolIndex; lsp?: LspReferenceProvider },
+  path: string,
+  symbol: string,
+): Promise<{ path: string; startLine: number; endLine: number } | undefined> {
+  const sym = engine.symbols.get(symbol, path);
+  if (!sym) return undefined;
+  if (engine.lsp?.available) {
+    const col = columnOf(sym.path, sym.startLine, sym.name);
+    const def = await engine.lsp.getDefinition(sym.path, sym.startLine, col);
+    if (def) return def;
+  }
+  return { path: sym.path, startLine: sym.startLine, endLine: sym.endLine };
 }
