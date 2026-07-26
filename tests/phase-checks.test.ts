@@ -56,7 +56,7 @@ describe("Phase 01 — repo bootstrap", () => {
     expect(existsSync("package.json")).toBe(true);
     expect(existsSync("tsconfig.json")).toBe(true);
     const pkg = JSON.parse(readFileSync("package.json", "utf8"));
-    expect(pkg.name).toBe("deep");
+    expect(pkg.name).toBe("deepcli");
     expect(pkg.bin.deep).toContain("entry.js");
   });
 });

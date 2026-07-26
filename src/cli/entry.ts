@@ -23,6 +23,7 @@ import { DependencyGraph } from "../repository-engine/graph.js";
 import { createLspProvider } from "../repository-engine/lsp.js";
 import { SessionKernel } from "../agent-core/session.js";
 import { printMessage, printResearchProgress, printCost } from "./tui.js";
+import { startRepl } from "./tui-app.js";
 import { metrics } from "../observability/logging.js";
 import { formatTrace, formatCost } from "../observability/trace.js";
 import { evaluateFixture } from "../evaluation/harness.js";
@@ -65,11 +66,13 @@ export type ParsedArgs =
   | { command: "evaluate"; fixtureDir: string }
   | { command: "graph"; target?: string }
   | { command: "log" }
-  | { command: "review"; tier?: "A" | "B" | "C" | "D" | "E"; tests?: boolean; sarif?: string; question?: string };
+  | { command: "review"; tier?: "A" | "B" | "C" | "D" | "E"; tests?: boolean; sarif?: string; question?: string }
+  | { command: "repl" };
 
 export function parseArgs(args: string[]): ParsedArgs {
   const [first, ...rest] = args;
-  if (!first || first === "--help" || first === "-h") return { command: "help" };
+  if (first === "--help" || first === "-h") return { command: "help" };
+  if (!first || first === "repl" || first === "chat") return { command: "repl" };
   if (first === "--version" || first === "-v") return { command: "version" };
   if (first === "research") return { command: "research", question: rest.join(" ") };
   if (first === "config") {
@@ -86,6 +89,7 @@ export function parseArgs(args: string[]): ParsedArgs {
   if (first === "graph") return { command: "graph", target: rest[0] };
   if (first === "evaluate") return { command: "evaluate", fixtureDir: rest.join(" ") };
   if (first === "log") return { command: "log" };
+  if (first === undefined || first === "repl" || first === "chat") return { command: "repl" };
   if (first === "review") {
     const tier = (rest.find((r) => /^[A-E]$/i.test(r)) ?? "B").toUpperCase() as "A" | "B" | "C" | "D" | "E";
     const sarifArg = rest.find((r) => r.startsWith("--sarif"));
@@ -416,6 +420,12 @@ export async function runCommand(argv: string[], deps: RunDeps = {}): Promise<nu
           `May block merge: ${report.mayBlockMerge.length}.`,
         out,
       );
+      return 0;
+    }
+    case "repl": {
+      // Interactive REader/Prompt loop (default when `deep` is run with no args).
+      const w = wire(root);
+      startRepl(root, out);
       return 0;
     }
     case "task": {

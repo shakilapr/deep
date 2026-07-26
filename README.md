@@ -18,8 +18,9 @@ Run against any repository:
 
 ```bash
 cd your-project
+node dist/cli/entry.js          # interactive REPL (default when no subcommand)
 node dist/cli/entry.js research "Why does the reconnect handler leave stale listeners?"
-node dist/cli/entry.js "Find and fix the reconnect bug"
+node dist/cli/entry.js "Find and fix the reconnect bug"  # one-shot coding task
 ```
 
 ## Architecture (modular monolith)

@@ -28,9 +28,11 @@ const READ_ONLY_TOOLS = new Set([
   "git_diff",
   "git_log",
   "repository_overview",
+  "find_references",
+  "file_references",
 ]);
 
-const WRITE_TOOLS = new Set(["apply_patch", "write_file", "run_command", "git_push"]);
+const WRITE_TOOLS = new Set(["apply_patch", "write_file", "edit_file", "run_command", "git_push"]);
 const RESEARCH_ONLY_ROLES: AgentRole[] = ["research-worker", "critic", "utility"];
 
 export class PolicyEngine {

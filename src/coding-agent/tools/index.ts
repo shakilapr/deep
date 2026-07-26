@@ -8,6 +8,7 @@ import { patchTools } from "./patch.js";
 import { commandTools } from "./command.js";
 import { gitTools } from "./gitTools.js";
 import { workspaceTools } from "./workspaceTools.js";
+import { writeTools } from "./writeTools.js";
 
 export function buildToolRuntime(
   engine: RepositoryEngine,
@@ -18,6 +19,7 @@ export function buildToolRuntime(
   for (const tool of [
     ...readTools(engine),
     ...patchTools(engine),
+    ...writeTools(engine),
     ...commandTools(engine),
     ...gitTools(engine),
     ...workspaceTools(engine.root),

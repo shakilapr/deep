@@ -1,5 +1,5 @@
 {
-  "name": "deep",
+  "name": "deepcli",
   "version": "0.1.0",
   "description": "Integrated CLI coding agent with a native multi-model research runtime",
   "type": "module",

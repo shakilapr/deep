@@ -64,7 +64,7 @@ describe("Phase 02 — CLI parsing", () => {
   it("parses --help and -h", () => {
     expect(parseArgs(["--help"]).command).toBe("help");
     expect(parseArgs(["-h"]).command).toBe("help");
-    expect(parseArgs([]).command).toBe("help");
+    expect(parseArgs([]).command).toBe("repl");
   });
 
   it("parses --version", () => {
