@@ -29,5 +29,19 @@
   "engines": {
     "node": ">=22.5.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "files": [
+    "dist",
+    "README.md",
+    "CONTRIBUTING.md",
+    "docs"
+  ],
+  "keywords": [
+    "cli",
+    "coding-agent",
+    "research",
+    "multi-model",
+    "code-review",
+    "sarif"
+  ]
 }

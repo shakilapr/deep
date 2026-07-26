@@ -1,6 +1,6 @@
 // Phase 12 — Atomic patch application
 import { readFileSync, writeFileSync, existsSync, renameSync, mkdirSync, copyFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 import { Tool, ToolContext, ToolResult } from "../../protocol/tools.js";
 import { safeResolve } from "../../repository-engine/fs.js";
 import { RepositoryEngine } from "../../repository-engine/engine.js";
@@ -35,7 +35,9 @@ export function applyPatchAtomic(engine: RepositoryEngine, patch: Patch): { chan
     const original = readFileSync(full, "utf8");
     const backupPath = `${full}.codeclaw.bak`;
     copyFileSync(full, backupPath);
-    backup.set(op.path, backupPath);
+    // Key the backup by the ABSOLUTE target so restore()/rollbackPatch() restore
+    // to the repo file, not process.cwd()/relative (the original bug).
+    backup.set(full, backupPath);
 
     if (op.delete) {
       // Only delete the exact `before` block if present; otherwise reject.
@@ -65,14 +67,15 @@ export function applyPatchAtomic(engine: RepositoryEngine, patch: Patch): { chan
 }
 
 function restore(backup: Map<string, string>) {
-  for (const [path, bak] of backup) {
-    renameSync(bak, join(path)); // restore original by moving backup back
+  // Keys are absolute target paths (see applyPatchAtomic).
+  for (const [target, bak] of backup) {
+    renameSync(bak, target); // restore original by moving backup back
   }
 }
 
 export function rollbackPatch(backup: Map<string, string>) {
-  for (const [path, bak] of backup) {
-    if (existsSync(bak)) renameSync(bak, path);
+  for (const [target, bak] of backup) {
+    if (existsSync(bak)) renameSync(bak, target);
   }
 }
 

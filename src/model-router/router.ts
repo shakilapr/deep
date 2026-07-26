@@ -63,7 +63,10 @@ export class ModelRouter {
   private cost(modelId: string, inT: number, outT: number): number {
     const t = { ...COST_TABLE, ...this.cfg.costTable }[modelId];
     if (!t) return 0;
-    return (inT / 1000) * t.in + (outT / 1000) * t.out;
+    // Guard against a partial costTable entry (e.g. {in} without {out}) -> NaN.
+    const inRate = typeof t.in === "number" ? t.in : 0;
+    const outRate = typeof t.out === "number" ? t.out : 0;
+    return (inT / 1000) * inRate + (outT / 1000) * outRate;
   }
 
   private isCooling(modelId: string): boolean {
@@ -146,6 +149,11 @@ export class ModelRouter {
         }
       }
     }
-    throw lastErr instanceof Error ? lastErr : new Error("all model routes failed");
+    if (lastErr instanceof Error) throw lastErr;
+    if (typeof lastErr === "string" && lastErr.length > 0) throw new Error(`all model routes failed: ${lastErr}`);
+    if (lastErr && typeof (lastErr as { message?: unknown }).message === "string") {
+      throw new Error(`all model routes failed: ${(lastErr as { message: string }).message}`);
+    }
+    throw new Error("all model routes failed (no usable error from providers)");
   }
 }
