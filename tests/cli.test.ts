@@ -118,6 +118,26 @@ describe("Phase 02 — CLI parsing", () => {
     expect(code).toBe(0);
     expect(lines).toContain("valid");
   });
+
+  it("doctor reports model/provider readiness", async () => {
+    const lines: string[] = [];
+    // Clear any ambient model config so the readiness line is deterministic.
+    const oldKey = process.env.OPENROUTER_API_KEY;
+    const oldModel = process.env.DEEP_MODEL;
+    const oldModelsMain = process.env.DEEP_MODELS_MAIN;
+    delete process.env.OPENROUTER_API_KEY;
+    delete process.env.DEEP_MODEL;
+    delete process.env.DEEP_MODELS_MAIN;
+    try {
+      const code = await runCommand(["doctor"], { cwd: repoDir, out: (l) => lines.push(l) });
+      expect(code).toBe(0);
+      expect(lines.join("\n")).toMatch(/model:/);
+    } finally {
+      process.env.OPENROUTER_API_KEY = oldKey;
+      process.env.DEEP_MODEL = oldModel;
+      process.env.DEEP_MODELS_MAIN = oldModelsMain;
+    }
+  });
 });
 
 describe("Phase 15 — TUI", () => {

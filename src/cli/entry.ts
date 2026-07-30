@@ -362,6 +362,24 @@ export async function runCommand(argv: string[], deps: RunDeps = {}): Promise<nu
         out(`doctor: repo check failed: ${(e as Error).message}`);
         return 1;
       }
+      // Model/provider readiness (advisory — does not affect the exit code).
+      const apiKey = process.env.OPENROUTER_API_KEY;
+      const envModel = process.env.DEEP_MODEL ?? process.env.DEEP_MODELS_MAIN;
+      let modelStatus: string;
+      if (envModel) {
+        modelStatus = `explicit (${envModel})`;
+      } else if (apiKey) {
+        modelStatus = "OpenRouter key present — free models discovered at runtime";
+      } else {
+        let hasConfigModel = false;
+        try {
+          hasConfigModel = (loadConfig({ repoRoot: root }).source ?? "defaults") !== "defaults";
+        } catch {
+          /* ignore */
+        }
+        modelStatus = hasConfigModel ? "configured via config file" : "NONE — research/task will refuse to run without a model";
+      }
+      out(`model: ${modelStatus}`);
       return 0;
     }
     case "sessions": {
