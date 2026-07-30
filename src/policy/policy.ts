@@ -1,5 +1,6 @@
 // Phase 34 (foundation) — Role-based tool policy engine
 import type { AgentRole } from "../protocol/events.js";
+import { classifyRisk } from "../coding-agent/tools/command.js";
 
 export type Risk = "low" | "medium" | "high";
 
@@ -55,14 +56,16 @@ export class PolicyEngine {
       if (tool === "git_push" && this.cfg.denyGitPush) {
         return { allowed: false, reason: "git push denied by policy", requiresApproval: false };
       }
-      if (tool === "apply_patch" || tool === "write_file") {
+      if (tool === "apply_patch" || tool === "write_file" || tool === "edit_file") {
         if (this.cfg.requireApprovalForWrite) {
           return { allowed: true, reason: "write requires approval", requiresApproval: true };
         }
         return { allowed: true, reason: "write permitted", requiresApproval: false };
       }
       if (tool === "run_command") {
-        const risk = (args.risk as Risk) ?? "low";
+        // Risk is classified server-side from the actual command, never trusted
+        // from caller-supplied args (a caller could label `rm -rf` as "low").
+        const risk = classifyRisk(String(args.command ?? ""));
         if (this.cfg.requireApprovalForCommand.includes(risk)) {
           return { allowed: true, reason: `command risk ${risk} requires approval`, requiresApproval: true };
         }

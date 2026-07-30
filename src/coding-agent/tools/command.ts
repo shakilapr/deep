@@ -138,11 +138,13 @@ export function commandTools(engine: RepositoryEngine): Tool[] {
     async run(args: any, ctx: ToolContext): Promise<ToolResult> {
       // Network access is forbidden for research/critic roles via policy already;
       // runCommand additionally applies a best-effort network sandbox for them.
+      // Risk is classified server-side from the command; caller-supplied args.risk
+      // is intentionally ignored so it cannot downgrade a destructive command.
       const res = await runCommand(engine.root, args.command, {
         timeoutMs: args.timeoutMs ?? 120_000,
         signal: ctx.signal,
         role: ctx.role,
-        risk: args.risk,
+        risk: classifyRisk(String(args.command ?? "")),
         env: { DEEP_NET: ctx.role === "main" ? "1" : "0" },
       });
       return {

@@ -111,3 +111,57 @@ describe("Phase 34 — policy", () => {
     expect(d.allowed).toBe(false);
   });
 });
+
+describe("Phase 34 — command risk + write gating", () => {
+  it("classifies run_command risk server-side (rm -rf is high)", () => {
+    const engine = new PolicyEngine({
+      denyGitPush: true,
+      requireApprovalForWrite: false,
+      requireApprovalForCommand: ["high"],
+    });
+    const d = engine.decide("main", "run_command", { command: "rm -rf /" });
+    expect(d.allowed).toBe(true);
+    expect(d.requiresApproval).toBe(true);
+    expect(d.reason).toContain("high");
+  });
+
+  it("ignores caller-supplied risk and still gates destructive commands", () => {
+    const engine = new PolicyEngine({
+      denyGitPush: true,
+      requireApprovalForWrite: false,
+      requireApprovalForCommand: ["high"],
+    });
+    // A caller labelling a destructive command as "low" must NOT bypass approval.
+    const d = engine.decide("main", "run_command", { command: "rm -rf /", risk: "low" });
+    expect(d.requiresApproval).toBe(true);
+  });
+
+  it("does not require approval for low-risk commands", () => {
+    const engine = new PolicyEngine({
+      denyGitPush: true,
+      requireApprovalForWrite: false,
+      requireApprovalForCommand: ["high"],
+    });
+    const d = engine.decide("main", "run_command", { command: "echo hello" });
+    expect(d.requiresApproval).toBe(false);
+  });
+
+  it("gates edit_file behind write approval like apply_patch", () => {
+    const engine = new PolicyEngine({
+      denyGitPush: true,
+      requireApprovalForWrite: true,
+      requireApprovalForCommand: ["high"],
+    });
+    expect(engine.decide("main", "edit_file", { path: "a.md" }).requiresApproval).toBe(true);
+    expect(engine.decide("main", "apply_patch", { files: [] }).requiresApproval).toBe(true);
+  });
+
+  it("permits writes without approval when requireApprovalForWrite is false", () => {
+    const engine = new PolicyEngine({
+      denyGitPush: true,
+      requireApprovalForWrite: false,
+      requireApprovalForCommand: ["high"],
+    });
+    expect(engine.decide("main", "edit_file", { path: "a.md" }).requiresApproval).toBe(false);
+  });
+});
