@@ -277,16 +277,20 @@ export async function runCommand(argv: string[], deps: RunDeps = {}): Promise<nu
       const [major, minor] = process.versions.node.split(".").map(Number);
       const nodeOk = major! > 22 || (major === 22 && minor! >= 5);
       out(`node ${process.versions.node} ${nodeOk ? "ok (>=22.5)" : "too old (need >=22.5)"}`);
+      if (!nodeOk) {
+        out("doctor: node version is too old (need >=22.5)");
+        return 1;
+      }
       try {
         const engine = new RepositoryEngine(root);
         engine.refresh();
         const ov = engine.overview();
         out(`repo ${root} ok: ${ov.files} files, ${ov.symbols} symbols, git=${ov.git.isRepo ?? "unknown"}`);
       } catch (e) {
-        out(`repo check failed: ${(e as Error).message}`);
-        return nodeOk ? 1 : 1;
+        out(`doctor: repo check failed: ${(e as Error).message}`);
+        return 1;
       }
-      return nodeOk ? 0 : 1;
+      return 0;
     }
     case "sessions": {
       const store = new Store(defaultDbLocations().project(root));
