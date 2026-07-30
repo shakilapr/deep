@@ -30,33 +30,21 @@ if (!API_KEY) {
   process.exit(1);
 }
 
-// Recommended Models Map by Category
+// Recommended Models Map by Category.
+// NOTE: the authoritative source of truth is the live OpenRouter catalog
+// (`fetchDynamicFreeModels` below). These seeds are only a convenience so the
+// probe has something to try even before the catalog is fetched; they were
+// trimmed to the ids most likely to exist — do not re-add fictional names.
 const RECOMMENDED_BY_CATEGORY = {
-  'Agent Orchestration': 'nvidia/nemotron-3-super-120b-a12b:free',
   'Coding & Agentic Work': 'cohere/north-mini-code:free',
-  'Deep Research (1M Context)': 'nvidia/nemotron-3-ultra-550b-a55b:free',
-  'Multimodal & Reasoning': 'google/gemma-4-31b-it:free',
-  'Cost-Efficient MoE': 'google/gemma-4-26b-a4b-it:free',
   'Low Latency Inference': 'openai/gpt-oss-20b:free'
 };
 
-// Candidate free models pool
+// Candidate free models pool (see note above — keep only plausible ids).
 const KNOWN_FREE_MODELS = [
-  'nvidia/nemotron-3-super-120b-a12b:free',
-  'nvidia/nemotron-3-ultra-550b-a55b:free',
-  'google/gemma-4-31b-it:free',
-  'google/gemma-4-26b-a4b-it:free',
   'cohere/north-mini-code:free',
   'openai/gpt-oss-20b:free',
-  'nvidia/nemotron-3-nano-30b-a3b:free',
-  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
-  'inclusionai/ling-3.0-flash:free',
-  'poolside/laguna-s-2.1:free',
-  'poolside/laguna-xs-2.1:free',
-  'poolside/laguna-m.1:free',
-  'nvidia/nemotron-nano-12b-v2-vl:free',
-  'nvidia/nemotron-nano-9b-v2:free',
-  'nvidia/nemotron-3.5-content-safety:free'
+  'nvidia/nemotron-nano-9b-v2:free'
 ];
 
 async function fetchDynamicFreeModels() {
