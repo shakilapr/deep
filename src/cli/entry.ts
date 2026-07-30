@@ -174,6 +174,8 @@ const FREE_PRIMARY = "openai/gpt-oss-20b:free";
  */
 async function discoverFreeModels(apiKey: string): Promise<string[]> {
   const cacheFile = join(process.cwd(), ".deep", "free-models.json");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
   try {
     const res = await fetch("https://openrouter.ai/api/v1/models", {
       headers: {
@@ -181,6 +183,7 @@ async function discoverFreeModels(apiKey: string): Promise<string[]> {
         "HTTP-Referer": "https://github.com/opencode",
         "X-Title": "Deep",
       },
+      signal: controller.signal,
     });
     if (!res.ok) throw new Error(`catalog returned ${res.status}`);
     const data = (await res.json()) as {
@@ -206,6 +209,8 @@ async function discoverFreeModels(apiKey: string): Promise<string[]> {
     } catch {
       return [];
     }
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
