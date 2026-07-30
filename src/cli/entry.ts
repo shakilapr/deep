@@ -163,7 +163,7 @@ function loadDotEnv(): void {
   }
 }
 
-// Phase 48 — Free-model primary + fallback chain (verified READY by check-free-models).
+// Phase 48 — Free-model primary + fallback chain, discovered at runtime from OpenRouter.
 const FREE_PRIMARY = "openai/gpt-oss-20b:free";
 const FREE_FALLBACKS = [
   "cohere/north-mini-code:free",
