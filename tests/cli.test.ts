@@ -79,7 +79,14 @@ describe("Phase 02 — CLI parsing", () => {
 
   it("parses research question", () => {
     const p = parseArgs(["research", "why does X fail"]);
-    expect(p).toEqual({ command: "research", question: "why does X fail" });
+    expect(p).toEqual({ command: "research", question: "why does X fail", depth: "normal" });
+  });
+
+  it("parses --depth flag out of the research question", () => {
+    const p = parseArgs(["research", "why does X fail", "--depth", "quick"]);
+    expect(p).toEqual({ command: "research", question: "why does X fail", depth: "quick" });
+    const p2 = parseArgs(["research", "--depth=deep", "why does X fail"]);
+    expect(p2).toEqual({ command: "research", question: "why does X fail", depth: "deep" });
   });
 
   it("parses config subcommands, doctor, sessions", () => {

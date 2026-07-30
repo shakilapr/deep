@@ -32,7 +32,7 @@ const USAGE = `deep — CLI coding agent
 
 Usage:
   deep <task>              Run the coding agent on a task in the current repo
-  deep research <question> Research the codebase and print a ResearchCapsule
+  deep research <question> [--depth quick|normal|deep]  Research the codebase and print a ResearchCapsule
   deep config show         Show resolved configuration (secrets redacted)
   deep config validate     Validate configuration
   deep doctor              Check environment/repo health
@@ -54,7 +54,7 @@ export type ParsedArgs =
   | { command: "help" }
   | { command: "version" }
   | { command: "task"; task: string }
-  | { command: "research"; question: string }
+  | { command: "research"; question: string; depth?: "quick" | "normal" | "deep" }
   | { command: "config-show" }
   | { command: "config-validate" }
   | { command: "doctor" }
@@ -74,7 +74,20 @@ export function parseArgs(args: string[]): ParsedArgs {
   if (first === "--help" || first === "-h") return { command: "help" };
   if (!first || first === "repl" || first === "chat") return { command: "repl" };
   if (first === "--version" || first === "-v") return { command: "version" };
-  if (first === "research") return { command: "research", question: rest.join(" ") };
+  if (first === "research") {
+    let depth: "quick" | "normal" | "deep" = "normal";
+    const questionParts: string[] = [];
+    for (let i = 0; i < rest.length; i++) {
+      const a = rest[i]!;
+      if (a === "--depth" || a.startsWith("--depth=")) {
+        const val = a.startsWith("--depth=") ? a.slice("--depth=".length) : rest[++i];
+        if (val === "quick" || val === "normal" || val === "deep") depth = val;
+      } else {
+        questionParts.push(a);
+      }
+    }
+    return { command: "research", question: questionParts.join(" ").trim(), depth };
+  }
   if (first === "config") {
     if (rest[0] === "show") return { command: "config-show" };
     if (rest[0] === "validate") return { command: "config-validate" };
@@ -364,7 +377,7 @@ export async function runCommand(argv: string[], deps: RunDeps = {}): Promise<nu
       );
       const snapshotId = w.engine.snapshots.create().id;
       const capsule = await runResearch(
-        { question: parsed.question, depth: "normal" },
+        { question: parsed.question, depth: parsed.depth ?? "normal" },
         { engine: w.engine, router: w.router, root: w.root, snapshotId },
       );
       const supp = new SuppressionStore(w.store);
