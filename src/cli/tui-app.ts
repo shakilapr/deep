@@ -9,8 +9,8 @@ import { SessionKernel } from "../agent-core/session.js";
 import { printMessage, printCost } from "./tui.js";
 import { metrics } from "../observability/logging.js";
 
-export function startRepl(root: string, out: (s: string) => void = console.log): void {
-  const w = wire(root);
+export async function startRepl(root: string, out: (s: string) => void = console.log): Promise<void> {
+  const w = await wire(root);
   const toolRuntime = buildToolRuntime(w.engine, w.policy, w.bus);
   const kernel = new SessionKernel(w.store, w.bus);
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout, prompt: "deep> " });

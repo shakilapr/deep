@@ -1,5 +1,5 @@
 // Phase 02 — CLI entrypoint (`deep`)
-import { readFileSync, existsSync, writeFileSync } from "node:fs";
+import { readFileSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, dirname, isAbsolute } from "node:path";
 import { loadConfig, redactForShow, ConfigError } from "../config/config.js";
@@ -163,18 +163,53 @@ function loadDotEnv(): void {
   }
 }
 
-// Phase 48 — Free-model primary + fallback chain, discovered at runtime from OpenRouter.
+// Phase 48 — Free-model chain is discovered at runtime from the OpenRouter catalog.
 const FREE_PRIMARY = "openai/gpt-oss-20b:free";
-const FREE_FALLBACKS = [
-  "cohere/north-mini-code:free",
-  "google/gemma-4-26b-a4b-it:free",
-  "nvidia/nemotron-3-nano-30b-a3b:free",
-  "inclusionai/ling-3.0-flash:free",
-  "poolside/laguna-s-2.1:free",
-  "nvidia/nemotron-nano-9b-v2:free",
-];
 
-export function wire(root: string): Wiring {
+/**
+ * Fetch the currently-available free models from OpenRouter. Falls back to a
+ * cached snapshot in .deep/free-models.json when the network is unavailable so
+ * offline runs still use real (previously-verified) model ids rather than
+ * fabricated ones.
+ */
+async function discoverFreeModels(apiKey: string): Promise<string[]> {
+  const cacheFile = join(process.cwd(), ".deep", "free-models.json");
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/models", {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://github.com/opencode",
+        "X-Title": "Deep",
+      },
+    });
+    if (!res.ok) throw new Error(`catalog returned ${res.status}`);
+    const data = (await res.json()) as {
+      data?: Array<{ id: string; pricing?: { prompt?: number; completion?: number } }>;
+    };
+    const ids = (data.data ?? [])
+      .filter(
+        (m) =>
+          (m.pricing && Number(m.pricing.prompt) === 0 && Number(m.pricing.completion) === 0) ||
+          m.id.endsWith(":free"),
+      )
+      .map((m) => m.id);
+    try {
+      mkdirSync(join(process.cwd(), ".deep"), { recursive: true });
+      writeFileSync(cacheFile, JSON.stringify(ids));
+    } catch {
+      /* best-effort cache */
+    }
+    return ids;
+  } catch {
+    try {
+      return JSON.parse(readFileSync(cacheFile, "utf8")) as string[];
+    } catch {
+      return [];
+    }
+  }
+}
+
+export async function wire(root: string): Promise<Wiring> {
   loadDotEnv();
   const bus = new EventBus();
   const store = new Store(defaultDbLocations().project(root));
@@ -211,10 +246,7 @@ export function wire(root: string): Wiring {
         ? requested!
         : FREE_PRIMARY
       : requested!;
-  const router = new ModelRouter(
-    { primary, fallbacks: apiKey ? { [FREE_PRIMARY]: FREE_FALLBACKS } : undefined, semanticRetry: true },
-    bus,
-  );
+  let router: ModelRouter;
   const mock = new MockProvider(
     {
       // Produce structured research-worker reports that cite real candidate files
@@ -242,21 +274,34 @@ export function wire(root: string): Wiring {
     "mock",
   );
   if (mockIsExplicit) {
+    router = new ModelRouter({ primary, semanticRetry: true }, bus);
     router.register(mock, ["mock/main", "mock/worker", "mock/critic"]);
-  }
-  if (apiKey) {
+  } else {
+    const free = await discoverFreeModels(apiKey!);
+    const freeList = free.length > 0 ? free : [FREE_PRIMARY];
+    const explicitReal = envModel && !isMockRequest ? envModel : undefined;
+    const primaryModel = explicitReal ?? freeList[0]!;
+    const others = freeList.filter((m) => m !== primaryModel);
+    router = new ModelRouter(
+      {
+        primary: primaryModel,
+        fallbacks: others.length ? { [primaryModel]: others } : undefined,
+        semanticRetry: true,
+      },
+      bus,
+    );
     const http = new HttpProvider({
       baseUrl: process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1",
-      apiKey,
+      apiKey: apiKey!,
       headers: { "HTTP-Referer": "https://github.com/opencode", "X-Title": "Deep" },
-      defaultModel: FREE_PRIMARY,
+      defaultModel: primaryModel,
     });
-    router.register(http, [FREE_PRIMARY, ...FREE_FALLBACKS]);
+    router.register(http, explicitReal ? [explicitReal, ...freeList] : freeList);
   }
   const replayFile = process.env.DEEP_REPLAY;
   if (replayFile) {
     const responses = loadReplayFile(replayFile);
-    router.register(new ReplayProvider(responses), [FREE_PRIMARY, ...FREE_FALLBACKS]);
+    router.register(new ReplayProvider(responses), [FREE_PRIMARY]);
   }
   return { root, bus, store, engine, policy, router };
 }
@@ -362,7 +407,7 @@ export async function runCommand(argv: string[], deps: RunDeps = {}): Promise<nu
     }
     case "evaluate": {
       const fixtureRoot = isAbsolute(parsed.fixtureDir) ? parsed.fixtureDir : join(root, parsed.fixtureDir);
-      const w = wire(fixtureRoot);
+      const w = await wire(fixtureRoot);
       const report = await evaluateFixture(fixtureRoot, {
         engine: w.engine,
         router: w.router,
@@ -393,7 +438,7 @@ export async function runCommand(argv: string[], deps: RunDeps = {}): Promise<nu
       return 0;
     }
     case "research": {
-      const w = wire(root);
+      const w = await wire(root);
       printResearchProgress(
         [
           { label: "localize candidates", state: "done" },
@@ -433,7 +478,7 @@ export async function runCommand(argv: string[], deps: RunDeps = {}): Promise<nu
     case "review": {
       // qa.md CI tiers. Read-only research + reporting; never edits the repo.
       const depth = parsed.tier === "A" ? "quick" : parsed.tier === "C" || parsed.tier === "D" ? "deep" : "normal";
-      const w = wire(root);
+      const w = await wire(root);
       const snapshotId = w.engine.snapshots.create().id;
       const capsule = await runResearch(
         { question: parsed.question ?? "Audit this codebase for defects", depth, budget: { timeoutSeconds: 600 } },
@@ -464,12 +509,12 @@ export async function runCommand(argv: string[], deps: RunDeps = {}): Promise<nu
     }
     case "repl": {
       // Interactive REader/Prompt loop (default when `deep` is run with no args).
-      const w = wire(root);
+      const w = await wire(root);
       startRepl(root, out);
       return 0;
     }
     case "task": {
-      const w = wire(root);
+      const w = await wire(root);
       const toolRuntime = buildToolRuntime(w.engine, w.policy, w.bus);
       const kernel = new SessionKernel(w.store, w.bus);
       const session = kernel.create(root);
