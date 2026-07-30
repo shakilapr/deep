@@ -327,14 +327,18 @@ export async function runCommand(argv: string[], deps: RunDeps = {}): Promise<nu
       try {
         const mod = await import("../observability/audit.js");
         const AuditLog = (mod as any).AuditLog;
+        if (!AuditLog) {
+          out("audit log unavailable (AuditLog not exported)");
+          return 1;
+        }
         const log = new AuditLog(root);
         const entries = log.query?.() ?? [];
         if (entries.length === 0) out("no audit entries");
         for (const e of entries) out(JSON.stringify(e));
         return 0;
-      } catch {
-        out("no audit log available");
-        return 0;
+      } catch (e) {
+        out(`audit log failed: ${(e as Error).message}`);
+        return 1;
       }
     }
     case "evaluate": {
