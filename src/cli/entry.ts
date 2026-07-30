@@ -193,7 +193,24 @@ export function wire(root: string): Wiring {
     requireApprovalForCommand: cfg?.policy?.requireApprovalForCommand ?? ["high"],
   });
   const apiKey = process.env.OPENROUTER_API_KEY;
-  const primary = process.env.DEEP_MODEL ?? (apiKey ? FREE_PRIMARY : cfg?.models?.main ?? "mock/main");
+  const envModel = process.env.DEEP_MODEL ?? process.env.DEEP_MODELS_MAIN;
+  const requested = envModel ?? cfg?.models?.main;
+  const isMockRequest = typeof requested === "string" && requested.startsWith("mock/");
+  const mockIsExplicit =
+    isMockRequest && (envModel !== undefined || (cfg?.source ?? "defaults") !== "defaults");
+  if (!mockIsExplicit && !apiKey) {
+    throw new Error(
+      "no model configured: set OPENROUTER_API_KEY (recommended) for real models, " +
+        "or set DEEP_MODEL=mock/main to run in mock/demo mode.",
+    );
+  }
+  const primary = mockIsExplicit
+    ? requested!
+    : apiKey
+      ? envModel && !isMockRequest
+        ? requested!
+        : FREE_PRIMARY
+      : requested!;
   const router = new ModelRouter(
     { primary, fallbacks: apiKey ? { [FREE_PRIMARY]: FREE_FALLBACKS } : undefined, semanticRetry: true },
     bus,
@@ -224,7 +241,9 @@ export function wire(root: string): Wiring {
     },
     "mock",
   );
-  router.register(mock, ["mock/main", "mock/worker", "mock/critic"]);
+  if (mockIsExplicit) {
+    router.register(mock, ["mock/main", "mock/worker", "mock/critic"]);
+  }
   if (apiKey) {
     const http = new HttpProvider({
       baseUrl: process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1",
