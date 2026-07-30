@@ -15,6 +15,8 @@ export interface AgentLoopDeps {
   sessionId: string;
   role?: AgentRole;
   bus?: EventBus;
+  /** Real approval hook (prompt TTY / fail-closed). When omitted, approvals are denied. */
+  requestApproval?: (action: string) => Promise<boolean>;
 }
 
 export interface AgentLoopResult {
@@ -113,7 +115,7 @@ export async function runAgentLoop(
         repoRoot: deps.root,
         signal: opts.signal,
         canApprove: true,
-        requestApproval: async () => true,
+        requestApproval: deps.requestApproval ?? (async () => false),
       };
       let resultText: string;
       try {

@@ -8,11 +8,17 @@ import { runResearch } from "../research-runtime/research.js";
 import { SessionKernel } from "../agent-core/session.js";
 import { printMessage, printCost } from "./tui.js";
 import { metrics } from "../observability/logging.js";
+import { buildApproval } from "./approval.js";
 
-export async function startRepl(root: string, out: (s: string) => void = console.log): Promise<void> {
+export async function startRepl(
+  root: string,
+  out: (s: string) => void = console.log,
+  opts: { autoApprove?: boolean } = {},
+): Promise<void> {
   const w = await wire(root);
   const toolRuntime = buildToolRuntime(w.engine, w.policy, w.bus);
   const kernel = new SessionKernel(w.store, w.bus);
+  const requestApproval = buildApproval(!!opts.autoApprove, out);
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout, prompt: "deep> " });
   let cancel: AbortController | undefined;
 
@@ -45,7 +51,7 @@ export async function startRepl(root: string, out: (s: string) => void = console
         case "task": {
           cancel = new AbortController();
           const session = kernel.create(root);
-          const res = await runAgentLoop(rest.join(" "), { router: w.router, toolRuntime, policy: w.policy, root, sessionId: session.id }, { signal: cancel.signal });
+          const res = await runAgentLoop(rest.join(" "), { router: w.router, toolRuntime, policy: w.policy, root, sessionId: session.id, requestApproval }, { signal: cancel.signal });
           printMessage("assistant", res.final, out);
           break;
         }
@@ -84,7 +90,7 @@ export async function startRepl(root: string, out: (s: string) => void = console
     // Default: treat as a coding task.
     cancel = new AbortController();
     const session = kernel.create(root);
-    const res = await runAgentLoop(input, { router: w.router, toolRuntime, policy: w.policy, root, sessionId: session.id }, { signal: cancel.signal });
+    const res = await runAgentLoop(input, { router: w.router, toolRuntime, policy: w.policy, root, sessionId: session.id, requestApproval }, { signal: cancel.signal });
     printMessage("assistant", res.final, out);
     rl.prompt();
   });

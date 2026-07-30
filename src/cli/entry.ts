@@ -24,6 +24,7 @@ import { createLspProvider } from "../repository-engine/lsp.js";
 import { SessionKernel } from "../agent-core/session.js";
 import { printMessage, printResearchProgress, printCost } from "./tui.js";
 import { startRepl } from "./tui-app.js";
+import { buildApproval } from "./approval.js";
 import { metrics } from "../observability/logging.js";
 import { formatTrace, formatCost } from "../observability/trace.js";
 import { evaluateFixture } from "../evaluation/harness.js";
@@ -53,7 +54,7 @@ Usage:
 export type ParsedArgs =
   | { command: "help" }
   | { command: "version" }
-  | { command: "task"; task: string }
+  | { command: "task"; task: string; yes?: boolean }
   | { command: "research"; question: string; depth?: "quick" | "normal" | "deep" }
   | { command: "config-show" }
   | { command: "config-validate" }
@@ -67,12 +68,14 @@ export type ParsedArgs =
   | { command: "graph"; target?: string }
   | { command: "log" }
   | { command: "review"; tier?: "A" | "B" | "C" | "D" | "E"; tests?: boolean; sarif?: string; question?: string }
-  | { command: "repl" };
+  | { command: "repl"; yes?: boolean };
 
 export function parseArgs(args: string[]): ParsedArgs {
-  const [first, ...rest] = args;
+  const yes = args.includes("--yes") || args.includes("-y");
+  const cleaned = args.filter((a) => a !== "--yes" && a !== "-y");
+  const [first, ...rest] = cleaned;
   if (first === "--help" || first === "-h") return { command: "help" };
-  if (!first || first === "repl" || first === "chat") return { command: "repl" };
+  if (!first || first === "repl" || first === "chat") return { command: "repl", yes };
   if (first === "--version" || first === "-v") return { command: "version" };
   if (first === "research") {
     let depth: "quick" | "normal" | "deep" = "normal";
@@ -102,7 +105,7 @@ export function parseArgs(args: string[]): ParsedArgs {
   if (first === "graph") return { command: "graph", target: rest[0] };
   if (first === "evaluate") return { command: "evaluate", fixtureDir: rest.join(" ") };
   if (first === "log") return { command: "log" };
-  if (first === undefined || first === "repl" || first === "chat") return { command: "repl" };
+  if (first === undefined || first === "repl" || first === "chat") return { command: "repl", yes };
   if (first === "review") {
     const tier = (rest.find((r) => /^[A-E]$/i.test(r)) ?? "B").toUpperCase() as "A" | "B" | "C" | "D" | "E";
     const sarifArg = rest.find((r) => r.startsWith("--sarif"));
@@ -117,7 +120,7 @@ export function parseArgs(args: string[]): ParsedArgs {
       .trim() || undefined;
     return { command: "review", tier, tests: rest.includes("--tests"), sarif, question };
   }
-  return { command: "task", task: [first, ...rest].join(" ") };
+  return { command: "task", task: [first, ...rest].join(" "), yes };
 }
 
 function packageVersion(): string {
@@ -515,7 +518,7 @@ export async function runCommand(argv: string[], deps: RunDeps = {}): Promise<nu
     case "repl": {
       // Interactive REader/Prompt loop (default when `deep` is run with no args).
       const w = await wire(root);
-      startRepl(root, out);
+      startRepl(root, out, { autoApprove: !!parsed.yes });
       return 0;
     }
     case "task": {
@@ -529,6 +532,7 @@ export async function runCommand(argv: string[], deps: RunDeps = {}): Promise<nu
         policy: w.policy,
         root: w.root,
         sessionId: session.id,
+        requestApproval: buildApproval(!!parsed.yes, out),
       });
       printMessage("assistant", result.final, out);
       return 0;

@@ -74,7 +74,7 @@ describe("Phase 02 — CLI parsing", () => {
 
   it("parses a task string", () => {
     const p = parseArgs(["fix the bug"]);
-    expect(p).toEqual({ command: "task", task: "fix the bug" });
+    expect(p).toEqual({ command: "task", task: "fix the bug", yes: false });
   });
 
   it("parses research question", () => {
