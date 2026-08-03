@@ -1,4 +1,5 @@
-// Phase 02 — CLI entrypoint (`deep`)
+#!/usr/bin/env node
+// Phase 02 — CLI entrypoint (`deepagent`)
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, dirname, isAbsolute } from "node:path";
