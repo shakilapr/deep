@@ -1,7 +1,7 @@
 # Deep
 
 A local-first CLI coding agent with a **native, multi-model research runtime**. One
-installable command (`deep`), one process, modular internals. The frontier coding model
+installable command (`deepagent`), one process, modular internals. The frontier coding model
 can call a first-class `research` tool that dispatches cheap models against a deterministic
 repository index, verifies every source claim, and returns a compact research capsule —
 keeping expensive model context out of the loop.
@@ -34,7 +34,7 @@ node dist/cli/entry.js "Find and fix the reconnect bug"  # one-shot coding task
 - `src/coding-agent` — tools (read, patch, command, git) and tool runtime.
 - `src/repository-engine` — filesystem index, lexical search, symbol index, snapshots, git.
 - `src/research-runtime` — localizer → planner → workers → verifier → critic → capsule.
-- `src/cli` — `deep` entrypoint + TUI.
+- `src/cli` — `deepagent` entrypoint + TUI.
 
 ## Research spine (the core economic bet)
 

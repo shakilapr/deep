@@ -1,6 +1,6 @@
 # Research Mode
 
-Deep's research mode (`deep research <question>`) investigates a codebase and
+Deep's research mode (`deepagent research <question>`) investigates a codebase and
 produces a **ResearchCapsule** — a machine-readable, evidence-backed answer.
 
 ## Pipeline

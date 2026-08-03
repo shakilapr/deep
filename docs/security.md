@@ -8,7 +8,7 @@ Evidence verification reads files from an immutable snapshot.
 
 ## Secret protection
 
-- Configuration display (`deep config show`) redacts secrets (API keys,
+- Configuration display (`deepagent config show`) redacts secrets (API keys,
   tokens) before printing.
 - Files matching common secret patterns (`.env`, key files) are excluded from
   indexing and from tool results.
@@ -30,7 +30,7 @@ not by the model.
 ## Audit
 
 Actions (tool calls, policy decisions, approvals) are appended to an audit log
-under `.deep/` in the project. `deep audit` prints the recorded entries so a
+under `.deep/` in the project. `deepagent audit` prints the recorded entries so a
 reviewer can reconstruct exactly what the agent did and why. Audit records are
 append-only and include timestamps.
 
@@ -38,4 +38,4 @@ append-only and include timestamps.
 
 - Run Deep in a repository checkout you can discard (or rely on git).
 - Keep `denyGitPush` enabled.
-- Review `deep audit` output after unattended runs.
+- Review `deepagent audit` output after unattended runs.

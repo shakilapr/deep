@@ -97,7 +97,7 @@ describe("user: brand-new, no configuration", () => {
   });
 });
 
-describe("user: runs `deep` with an OpenRouter key (offline-safe)", () => {
+describe("user: runs `deepagent` with an OpenRouter key (offline-safe)", () => {
   it("doctor reports the key without hitting the network", async () => {
     const r = await run(["doctor"], { OPENROUTER_API_KEY: "sk-test", DEEP_MODEL: undefined });
     expect(r.code).toBe(0);

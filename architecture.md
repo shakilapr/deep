@@ -18,7 +18,7 @@ The implementation is a functional subset of this architecture, plus an added
   free models) with `.env` loading and a free-model fallback chain.
 - **Bug-research pipeline** (`src/research-runtime/`): `finding` (L0–L5 evidence
   ladder), `judge`, `scope`, `context`, `pathAnalyst`, `skeptic`, `repro`,
-  `suppressions`, `grading`, `report`, `sarif`. Exposed via `deep review <q> [tier]
+  `suppressions`, `grading`, `report`, `sarif`. Exposed via `deepagent review <q> [tier]
   [--tests] [--sarif=...]` — strictly **read-only / reporting**.
 - **Replay mode** (`src/model-router/replay.ts`): record/replay provider for offline regression.
 - **Model router**: capability-registry scoring, **semantic retry** (empty research
@@ -386,14 +386,14 @@ Responsibilities:
 Example commands:
 
 ```bash
-Deep
-Deep "Fix the reconnect issue"
-Deep research "Explain the authentication flow"
-Deep resume
-Deep sessions
-Deep models
-Deep doctor
-Deep index
+deepagent
+deepagent "Fix the reconnect issue"
+deepagent research "Explain the authentication flow"
+deepagent resume
+deepagent sessions
+deepagent models
+deepagent doctor
+deepagent index
 ```
 
 Suggested interactive commands:
@@ -2589,11 +2589,11 @@ Test duration
 Useful commands:
 
 ```bash
-Deep cost
-Deep trace
-Deep research inspect <id>
-Deep doctor
-Deep benchmark
+deepagent cost
+deepagent trace
+deepagent research inspect <id>
+deepagent doctor
+deepagent benchmark
 ```
 
 Example TUI progress:

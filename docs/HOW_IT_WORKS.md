@@ -1,6 +1,6 @@
 # How Deep actually works
 
-This document describes the real runtime behavior of the `deep` CLI, grounded in
+This document describes the real runtime behavior of the `deepagent` CLI, grounded in
 the source under `src/`. It is intentionally not aspirational — everything below
 corresponds to code paths that exist today.
 
@@ -8,9 +8,9 @@ Deep is a local-first CLI coding agent with a native, multi-model research
 runtime. One process, one command, a modular monolith. The two user-facing
 capabilities are:
 
-1. **`deep <task>` / REPL** — an agent loop that calls tools to inspect and edit
+1. **`deepagent <task>` / REPL** — an agent loop that calls tools to inspect and edit
    the repository, then answers the user.
-2. **`deep research <question>` / `deep review`** — a research runtime that
+2. **`deepagent research <question>` / `deepagent review`** — a research runtime that
    localizes candidates, dispatches cheap read-only workers, verifies every
    source claim mechanically, and returns a compact `ResearchCapsule` (or a
    graded findings report).
@@ -77,7 +77,7 @@ Notable behaviors:
 - **`evaluate`** runs the evaluation harness over a fixture directory
   (`src/evaluation/harness.ts`), used by the readiness tests.
 
-## The agent loop (`deep <task>` and the REPL)
+## The agent loop (`deepagent <task>` and the REPL)
 
 `runAgentLoop` (`src/agent-core/agentLoop.ts`) is a bounded turn loop:
 
@@ -136,7 +136,7 @@ by default. `buildApproval` (`src/cli/approval.ts`) builds the concrete strategy
 - Interactive TTY present → a real `Allow <action>? [y/N]` readline prompt.
 - Non-interactive (CI/pipe, no TTY) → deny with a "pass --yes" hint.
 
-This means the default for `deep <task>` is **autonomous for low/medium risk** but
+This means the default for `deepagent <task>` is **autonomous for low/medium risk** but
 **high-risk commands prompt on a TTY and are denied when headless unless `--yes`
 is given**. The approval function accepts an injectable `prompt` so it is testable
 headlessly.
@@ -178,10 +178,10 @@ Budgets are enforced with an `AbortController` (timeout) plus `maxModelCalls` /
 
 ### From capsule to developer-facing artifacts
 
-- `deep research` prints a pretty-printed `ResearchReport`:
+- `deepagent research` prints a pretty-printed `ResearchReport`:
   `{ capsule, findings, levelCounts, mayBlockMerge }` (`buildReport` in
   `src/research-runtime/report.ts`).
-- `deep review [tier] [--tests] [--sarif=out.sarif]` runs the same research, then
+- `deepagent review [tier] [--tests] [--sarif=out.sarif]` runs the same research, then
   grades findings (an L0–L5 evidence ladder per `qa.md`) and can emit SARIF
   (`src/research-runtime/sarif.ts`). Review is read-only and never edits the repo.
 
@@ -224,7 +224,7 @@ The default config sets `requireApprovalForCommand: ["high"]`,
 - **Event bus** — typed in-process pub/sub (`src/observability/eventBus.ts`);
   subscribers are isolated (one failing subscriber doesn't break others).
 - **Metrics** — counters for model calls, tokens, cost (`src/observability/logging.ts`);
-  surfaced via `deep trace` and `deep cost`.
+  surfaced via `deepagent trace` and `deepagent cost`.
 - **Audit log** — append-only JSONL under `<root>/.deep/audit/`, every entry
   redacted via `redactObject` (`src/policy/secret.ts`). Records security-relevant
   events: `ToolCallCompleted`, `ApprovalRequested`/`ApprovalResolved`,

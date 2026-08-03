@@ -29,26 +29,26 @@ import { metrics } from "../observability/logging.js";
 import { formatTrace, formatCost } from "../observability/trace.js";
 import { evaluateFixture } from "../evaluation/harness.js";
 
-const USAGE = `deep — CLI coding agent
+const USAGE = `deepagent — CLI coding agent
 
 Usage:
-  deep <task>              Run the coding agent on a task in the current repo
-  deep research <question> [--depth quick|normal|deep]  Research the codebase and print a ResearchCapsule
-  deep config show         Show resolved configuration (secrets redacted)
-  deep config validate     Validate configuration
-  deep doctor              Check environment/repo health
-  deep resume              List resumable sessions
-  deep sessions            List sessions
-  deep index [--rebuild]   Refresh (or fully rebuild) the repository index
-  deep trace               Print metrics + recent event summary
-  deep cost                Print token/cost summary
-  deep audit               Print the audit log for this repo
-  deep review <q> [A|B|C] [--tests] [--sarif=out.sarif]  Research bugs (read-only), emit L-graded findings + SARIF
-  deep graph [file]        Print the dependency graph (or one file's imports/importers)
-  deep log [--graph]      Print git log (or commit graph)
-  deep evaluate <dir>      Run the evaluation harness on a fixture directory
-  deep --help | -h         Show this help
-  deep --version | -v      Show version
+  deepagent <task>              Run the coding agent on a task in the current repo
+  deepagent research <question> [--depth quick|normal|deep]  Research the codebase and print a ResearchCapsule
+  deepagent config show         Show resolved configuration (secrets redacted)
+  deepagent config validate     Validate configuration
+  deepagent doctor              Check environment/repo health
+  deepagent resume              List resumable sessions
+  deepagent sessions            List sessions
+  deepagent index [--rebuild]   Refresh (or fully rebuild) the repository index
+  deepagent trace               Print metrics + recent event summary
+  deepagent cost               Print token/cost summary
+  deepagent audit               Print the audit log for this repo
+  deepagent review <q> [A|B|C] [--tests] [--sarif=out.sarif]  Research bugs (read-only), emit L-graded findings + SARIF
+  deepagent graph [file]        Print the dependency graph (or one file's imports/importers)
+  deepagent log [--graph]      Print git log (or commit graph)
+  deepagent evaluate <dir>      Run the evaluation harness on a fixture directory
+  deepagent --help | -h         Show this help
+  deepagent --version | -v      Show version
   `;
 
 export type ParsedArgs =

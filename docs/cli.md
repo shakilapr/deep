@@ -1,53 +1,54 @@
 # CLI Reference
 
 ```
-deep <task>              Run the coding agent on a task in the current repo
-deep research <question> Research the codebase and print a ResearchCapsule
-deep config show         Show resolved configuration (secrets redacted)
-deep config validate     Validate configuration
-deep doctor              Check environment/repo health
-deep resume | sessions   List resumable sessions
-deep trace               Print metrics + recent event summary
-deep cost                Print token/cost summary
-deep audit               Print the audit log for this repo
-deep evaluate <dir>      Run the evaluation harness on a fixture directory
-deep --help | -h         Show help
-deep --version | -v      Show version
+deepagent <task>              Run the coding agent on a task in the current repo
+deepagent research <question> Research the codebase and print a ResearchCapsule
+deepagent config show         Show resolved configuration (secrets redacted)
+deepagent config validate     Validate configuration
+deepagent doctor              Check environment/repo health
+deepagent resume | sessions   List resumable sessions
+deepagent trace               Print metrics + recent event summary
+deepagent cost                Print token/cost summary
+deepagent audit               Print the audit log for this repo
+deepagent evaluate <dir>      Run the evaluation harness on a fixture directory
+deepagent --help | -h         Show help
+deepagent --version | -v      Show version
 ```
 
 ## Commands
 
-### `deep <task>`
+### `deepagent <task>`
 Runs the agent loop: model plans, calls tools (read/write/search/shell) under
 the policy engine, and prints the final assistant message. A session is
 created and can be resumed later.
 
-### `deep research <question>`
+### `deepagent research <question>`
 Read-only investigation. Prints a JSON ResearchCapsule plus a summary and cost
 line. See `docs/research-mode.md`.
 
-### `deep config show` / `deep config validate`
+### `deepagent config show` / `deepagent config validate`
 Shows the resolved config with secrets redacted, or validates it and exits
 non-zero with the offending field on failure.
 
-### `deep doctor`
-Checks Node version (>= 22.5) and repository indexability.
+### `deepagent doctor`
+Checks Node version (>= 22.5) and repository indexability, and prints a
+model/provider readiness line.
 
-### `deep sessions` / `deep resume`
+### `deepagent sessions` / `deepagent resume`
 Lists stored sessions with message counts and update times.
 
-### `deep trace`
+### `deepagent trace`
 Prints a metrics snapshot (tokens, cost, tool calls, timers) and recent event
 count.
 
-### `deep cost`
+### `deepagent cost`
 Prints a human-readable token and cost summary.
 
-### `deep audit`
+### `deepagent audit`
 Prints audit-log entries from `.deep/` if present; otherwise reports that no
 audit log exists.
 
-### `deep evaluate <fixtureDir>`
+### `deepagent evaluate <fixtureDir>`
 Runs research against a fixture with `ground-truth.json` and prints a
 machine-readable `EvalReport` (recall@1/@5, evidence validity, root-cause
 coverage, usage).
