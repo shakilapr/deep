@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "lint": "eslint . || echo 'lint not configured'",
     "doctor": "tsx src/cli/entry.ts doctor",
-    "check-free-models": "node scripts/check-free-models.js"
+    "check-free-models": "node scripts/check-free-models.js",
+    "prepublishOnly": "npm run build && npm run test"
   },
   "dependencies": {
     "minimatch": "^10.0.1"
